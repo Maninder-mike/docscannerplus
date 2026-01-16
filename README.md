@@ -1,7 +1,7 @@
 # DocScanner Plus
 
 <p align="center">
-  <img src="assets/images/app_logo.jpg" width="120" alt="DocScanner Plus Logo"/>
+  <img src="assets/images/play_store.png" width="120" alt="DocScanner Plus Logo"/>
 </p>
 
 A powerful document scanner app built with Flutter and Google ML Kit. Scan, organize, share, and extract text from your documents with ease.
