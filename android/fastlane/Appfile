@@ -2,7 +2,7 @@
 # https://docs.fastlane.tools/advanced/#appfile
 
 # App identifier (package name)
-package_name("com.example.docscannerplus")
+package_name("com.docscanner.docscannerplus")
 
 # Path to your service account JSON (for Play Store uploads)
 # json_key_file("path/to/play-store-key.json")

@@ -51,10 +51,10 @@ platform :android do
   lane :deploy_internal do
     build_appbundle
     # Uncomment and configure when ready to upload
-    # upload_to_play_store(
-    #   track: 'internal',
-    #   aab: '../build/app/outputs/bundle/release/app-release.aab'
-    # )
+    upload_to_play_store(
+      track: 'internal',
+      aab: '../build/app/outputs/bundle/release/app-release.aab'
+    )
   end
 
   desc "Build and deploy to production"
