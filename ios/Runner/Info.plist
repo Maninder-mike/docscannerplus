@@ -45,5 +45,23 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>We need access to the camera to scan documents.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>We need access to your photo library to save or import scanned documents.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>We need to use FaceID to secure your documents.</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<!-- TODO: Replace this value with the REVERSED_CLIENT_ID from your GoogleService-Info.plist -->
+				<string>com.googleusercontent.apps.REPLACE_WITH_ACTUAL_ID</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

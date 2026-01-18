@@ -2,36 +2,42 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:aad_oauth/aad_oauth.dart';
 import 'package:aad_oauth/model/config.dart';
+import 'package:docscannerplus/main.dart' show appNavigatorKey;
 import 'package:docscannerplus/services/cloud/cloud_storage_service.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 class OneDriveService implements CloudStorageService {
+  static const String _appFolderName = 'DocScanner+';
+
   // Credentials are now retrieved from environment variables
+  // Run with: flutter run --dart-define=ONEDRIVE_CLIENT_ID=your-client-id
   static const String _clientId = String.fromEnvironment('ONEDRIVE_CLIENT_ID');
   static const String _redirectUri = String.fromEnvironment(
     'ONEDRIVE_REDIRECT_URI',
-    defaultValue: 'msauth://com.example.docscannerplus/callback',
+    defaultValue: 'msauth://in.co.maninder.docscannerplus/callback',
   );
   static const String _tenantId = 'common';
 
-  static final GlobalKey<NavigatorState> _navigatorKey =
-      GlobalKey<NavigatorState>();
-
-  final AadOAuth _oauth = AadOAuth(
-    Config(
-      tenant: _tenantId,
-      clientId: _clientId,
-      scope:
-          'Files.ReadWrite.AppFolder openid profile offline_access User.Read',
-      redirectUri: _redirectUri,
-      navigatorKey: _navigatorKey,
-      isB2C: false,
-    ),
-  );
-
+  AadOAuth? _oauth;
   String? _accessToken;
   String? _userEmail;
+  String? _appFolderId;
+
+  AadOAuth _getOAuth() {
+    _oauth ??= AadOAuth(
+      Config(
+        tenant: _tenantId,
+        clientId: _clientId,
+        // Changed to Files.ReadWrite for full drive access (visible folder)
+        scope: 'Files.ReadWrite openid profile offline_access User.Read',
+        redirectUri: _redirectUri,
+        navigatorKey: appNavigatorKey,
+        isB2C: false,
+      ),
+    );
+    return _oauth!;
+  }
 
   @override
   String get providerId => 'onedrive';
@@ -42,10 +48,11 @@ class OneDriveService implements CloudStorageService {
   @override
   Future<bool> signIn() async {
     try {
-      await _oauth.login();
-      _accessToken = await _oauth.getAccessToken();
+      await _getOAuth().login();
+      _accessToken = await _getOAuth().getAccessToken();
       if (_accessToken != null) {
         await _fetchUserProfile();
+        await _ensureAppFolderExists();
         return true;
       }
       return false;
@@ -57,18 +64,19 @@ class OneDriveService implements CloudStorageService {
 
   @override
   Future<void> signOut() async {
-    await _oauth.logout();
+    await _getOAuth().logout();
     _accessToken = null;
     _userEmail = null;
+    _appFolderId = null;
   }
 
   @override
   Future<bool> isSignedIn() async {
     try {
-      _accessToken = await _oauth.getAccessToken();
+      _accessToken = await _getOAuth().getAccessToken();
       if (_accessToken != null) {
-        // Token exists, verify/refresh by fetching profile
         final success = await _fetchUserProfile();
+        if (success) await _ensureAppFolderExists();
         return success;
       }
       return false;
@@ -102,29 +110,103 @@ class OneDriveService implements CloudStorageService {
     }
   }
 
+  /// Finds or creates the app folder in OneDrive root
+  Future<void> _ensureAppFolderExists() async {
+    if (_accessToken == null) {
+      debugPrint('OneDrive: No access token, skipping folder check');
+      return;
+    }
+
+    debugPrint('OneDrive: Checking for existing $_appFolderName folder...');
+
+    try {
+      // First, try to get children of root and look for our folder
+      final listUrl = Uri.parse(
+        'https://graph.microsoft.com/v1.0/me/drive/root/children',
+      );
+
+      final listResponse = await http.get(
+        listUrl,
+        headers: {'Authorization': 'Bearer $_accessToken'},
+      );
+
+      debugPrint('OneDrive list root response: ${listResponse.statusCode}');
+
+      if (listResponse.statusCode == 200) {
+        final data = jsonDecode(listResponse.body);
+        final List items = data['value'];
+
+        // Look for existing folder by name
+        for (final item in items) {
+          if (item['name'] == _appFolderName && item['folder'] != null) {
+            _appFolderId = item['id'];
+            debugPrint('Found existing DocScanner+ folder: $_appFolderId');
+            return;
+          }
+        }
+      } else {
+        debugPrint('OneDrive list error: ${listResponse.body}');
+      }
+
+      // Create the folder
+      debugPrint('OneDrive: Creating $_appFolderName folder...');
+      final createUrl = Uri.parse(
+        'https://graph.microsoft.com/v1.0/me/drive/root/children',
+      );
+
+      final createResponse = await http.post(
+        createUrl,
+        headers: {
+          'Authorization': 'Bearer $_accessToken',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'name': _appFolderName,
+          'folder': {},
+          '@microsoft.graph.conflictBehavior': 'rename',
+        }),
+      );
+
+      debugPrint(
+        'OneDrive create folder response: ${createResponse.statusCode}',
+      );
+
+      if (createResponse.statusCode == 201) {
+        final data = jsonDecode(createResponse.body);
+        _appFolderId = data['id'];
+        debugPrint('Created DocScanner+ folder: $_appFolderId');
+      } else {
+        debugPrint('OneDrive folder creation failed: ${createResponse.body}');
+      }
+    } catch (e) {
+      debugPrint('Failed to ensure OneDrive app folder: $e');
+    }
+  }
+
   @override
   Future<String?> uploadFile(File file, String destinationName) async {
     if (_accessToken == null) return null;
 
     try {
-      // Small files upload (up to 4MB) simple upload.
-      // For App Folder: /me/drive/special/approot
-      // Endpoint: PUT /me/drive/special/approot:/<filename>:/content
+      if (_appFolderId == null) await _ensureAppFolderExists();
+
+      // Upload to the app folder
       final url = Uri.parse(
-        'https://graph.microsoft.com/v1.0/me/drive/special/approot:/$destinationName:/content',
+        'https://graph.microsoft.com/v1.0/me/drive/items/$_appFolderId:/$destinationName:/content',
       );
 
       final response = await http.put(
         url,
         headers: {
           'Authorization': 'Bearer $_accessToken',
-          'Content-Type': 'application/octet-stream', // Generic binary
+          'Content-Type': 'application/octet-stream',
         },
         body: await file.readAsBytes(),
       );
 
       if (response.statusCode == 201 || response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        debugPrint('OneDrive Upload Success: ${data['id']}');
         return data['id'];
       } else {
         debugPrint(
@@ -143,7 +225,6 @@ class OneDriveService implements CloudStorageService {
     if (_accessToken == null) return null;
 
     try {
-      // GET /me/drive/items/{item-id}/content
       final url = Uri.parse(
         'https://graph.microsoft.com/v1.0/me/drive/items/$cloudId/content',
       );
@@ -188,9 +269,12 @@ class OneDriveService implements CloudStorageService {
     if (_accessToken == null) return {};
 
     try {
-      // GET /me/drive/special/approot/children
+      if (_appFolderId == null) await _ensureAppFolderExists();
+      if (_appFolderId == null) return {};
+
+      // List files from the app folder
       final url = Uri.parse(
-        'https://graph.microsoft.com/v1.0/me/drive/special/approot/children',
+        'https://graph.microsoft.com/v1.0/me/drive/items/$_appFolderId/children',
       );
 
       final response = await http.get(

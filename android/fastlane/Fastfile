@@ -47,13 +47,12 @@ platform :android do
     end
   end
 
-  desc "Build and deploy to internal testing track"
+  desc "Deploy to internal testing track"
   lane :deploy_internal do
-    build_appbundle
-    # Uncomment and configure when ready to upload
     upload_to_play_store(
       track: 'internal',
-      aab: '../build/app/outputs/bundle/release/app-release.aab'
+      aab: '../build/app/outputs/bundle/release/app-release.aab',
+      json_key: 'fastlane/play-store-key.json'
     )
   end
 

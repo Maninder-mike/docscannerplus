@@ -2,7 +2,7 @@ import 'package:docscannerplus/home_page.dart';
 import 'package:docscannerplus/lock_screen.dart';
 import 'package:docscannerplus/onboarding_page.dart';
 import 'package:docscannerplus/repositories/security_repository.dart';
-import 'package:docscannerplus/repositories/settings_repository.dart';
+
 import 'package:docscannerplus/theme.dart';
 import 'package:dynamic_color/dynamic_color.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
@@ -11,54 +11,70 @@ import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:docscannerplus/l10n/generated/app_localizations.dart';
+
+import 'package:docscannerplus/services/remote_config_service.dart';
+import 'package:docscannerplus/services/messaging_service.dart';
+import 'package:docscannerplus/services/local_notification_service.dart';
+import 'package:docscannerplus/providers/settings_provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+/// Global navigator key for OAuth flows (e.g., OneDrive)
+final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Initialize Firebase
-  // Note: This requires google-services.json (Android) and GoogleService-Info.plist (iOS)
-  // to be present in the project options.
   try {
     await Firebase.initializeApp();
-
-    // Pass all uncaught "fatal" errors from the framework to Crashlytics
     FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
-    // Pass all uncaught asynchronous errors that aren't handled by the Flutter framework to Crashlytics
     PlatformDispatcher.instance.onError = (error, stack) {
       FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
       return true;
     };
   } catch (e) {
     debugPrint("Firebase initialization failed: $e");
-    // Continue running app even if Firebase fails (e.g. missing config file)
   }
 
-  runApp(const MyApp());
+  // Initialize Remote Config
+  try {
+    await RemoteConfigService().initialize();
+  } catch (e) {
+    debugPrint("Remote Config init failed: $e");
+  }
+
+  // Initialize Messaging (FCM)
+  try {
+    await MessagingService().initialize();
+  } catch (e) {
+    debugPrint("Messaging init failed: $e");
+  }
+
+  // Welcome Notification (Local)
+  try {
+    final localService = LocalNotificationService();
+    await localService.initialize();
+    // Fire and forget, don't await the delay
+    localService.checkAndShowWelcomeNotification();
+  } catch (e) {
+    debugPrint("Local notification init failed: $e");
+  }
+
+  runApp(const ProviderScope(child: MyApp()));
 }
 
-class MyApp extends StatefulWidget {
+class MyApp extends ConsumerStatefulWidget {
   const MyApp({super.key});
 
   @override
-  State<MyApp> createState() => _MyAppState();
-
-  /// Access theme mode changer from anywhere in the app
-  static void setThemeMode(BuildContext context, ThemeMode mode) {
-    final state = context.findAncestorStateOfType<_MyAppState>();
-    state?._setThemeMode(mode);
-  }
-
-  static ThemeMode getThemeMode(BuildContext context) {
-    final state = context.findAncestorStateOfType<_MyAppState>();
-    return state?._themeMode ?? ThemeMode.system;
-  }
+  ConsumerState<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
-  final _settingsRepository = SettingsRepository();
+class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
+  // Security repo still local for now as it's not a global provider yet (except implicit)
+  // or we could move it to provider.
   final _securityRepository = SecurityRepository();
-  ThemeMode _themeMode = ThemeMode.system;
 
   bool _isLoading = true;
   bool _showOnboarding = false;
@@ -91,8 +107,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   }
 
   Future<void> _initialize() async {
-    // Load theme
-    final savedMode = await _settingsRepository.loadThemeMode();
+    // Theme is loaded by Riverpod provider automatically.
 
     // Check onboarding
     final onboardingCompleted = await OnboardingPage.isCompleted();
@@ -102,7 +117,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
     if (mounted) {
       setState(() {
-        _themeMode = savedMode;
         _showOnboarding = !onboardingCompleted;
         _isLocked = lockEnabled && onboardingCompleted;
         _isLoading = false;
@@ -117,11 +131,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     }
   }
 
-  void _setThemeMode(ThemeMode mode) {
-    setState(() => _themeMode = mode);
-    _settingsRepository.saveThemeMode(mode);
-  }
-
   void _onOnboardingComplete() {
     setState(() => _showOnboarding = false);
   }
@@ -132,6 +141,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    final themeMode = ref.watch(themeModeProvider);
+
     // Firebase Analytics Observer
     final analyticsObserver = FirebaseAnalyticsObserver(
       analytics: FirebaseAnalytics.instance,
@@ -140,11 +151,12 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     return DynamicColorBuilder(
       builder: (ColorScheme? lightDynamic, ColorScheme? darkDynamic) {
         return MaterialApp(
+          navigatorKey: appNavigatorKey,
           title: 'DocScanner+',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.lightTheme(lightDynamic),
           darkTheme: AppTheme.darkTheme(darkDynamic),
-          themeMode: _themeMode,
+          themeMode: themeMode,
 
           // Localization
           localizationsDelegates: const [
@@ -155,7 +167,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           ],
           supportedLocales: const [
             Locale('en'), // English
-            // Add more locales here
           ],
 
           // Analytics Tracking
@@ -168,22 +179,15 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   }
 
   Widget _buildHome() {
-    // Show loading
     if (_isLoading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
-
-    // Show onboarding
     if (_showOnboarding) {
       return OnboardingPage(onComplete: _onOnboardingComplete);
     }
-
-    // Show lock screen
     if (_isLocked) {
       return LockScreen(onUnlocked: _onUnlocked);
     }
-
-    // Show home page
     return const HomePage();
   }
 }

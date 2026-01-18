@@ -5,31 +5,28 @@ import 'package:docscannerplus/services/image_filter_service.dart';
 import 'package:docscannerplus/services/sync_service.dart';
 import 'package:docscannerplus/repositories/document_repository.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:docscannerplus/providers/settings_provider.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:gap/gap.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/services.dart';
+import 'package:docscannerplus/services/messaging_service.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 
-class SettingsPage extends StatefulWidget {
-  final ThemeMode currentThemeMode;
-  final ValueChanged<ThemeMode> onThemeModeChanged;
-
-  const SettingsPage({
-    super.key,
-    required this.currentThemeMode,
-    required this.onThemeModeChanged,
-  });
+class SettingsPage extends ConsumerStatefulWidget {
+  const SettingsPage({super.key});
 
   @override
-  State<SettingsPage> createState() => _SettingsPageState();
+  ConsumerState<SettingsPage> createState() => _SettingsPageState();
 }
 
-class _SettingsPageState extends State<SettingsPage> {
+class _SettingsPageState extends ConsumerState<SettingsPage> {
   final _securityRepo = SecurityRepository();
   final _settingsRepo = SettingsRepository();
   late final CloudRepository _cloudRepo;
-  late ThemeMode _selectedTheme;
   String _appVersion = '';
 
   // Settings State
@@ -44,10 +41,7 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   void initState() {
     super.initState();
-    _settingsRepo.saveThemeMode(
-      widget.currentThemeMode,
-    ); // Ensure saved initially if needed
-    _selectedTheme = widget.currentThemeMode;
+    // Theme is loaded/managed by Riverpod provider
     _cloudRepo = CloudRepository(settingsRepo: _settingsRepo);
     _loadAppInfo();
     _loadSecuritySettings();
@@ -275,6 +269,15 @@ class _SettingsPageState extends State<SettingsPage> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Column(
         children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: Text(
+              'Connect one cloud provider to sync your documents across devices.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
           _buildProviderOption(
             id: 'google_drive',
             name: 'Google Drive',
@@ -452,48 +455,53 @@ class _SettingsPageState extends State<SettingsPage> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children:
-            [
-                  // Scanner Preferences
-                  _buildSectionHeader('Scanner Preferences'),
-                  const Gap(8),
-                  _buildScannerPreferencesCard(colorScheme),
-                  const Gap(24),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 600),
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children:
+                [
+                      // Scanner Preferences
+                      _buildSectionHeader('Scanner Preferences'),
+                      const Gap(8),
+                      _buildScannerPreferencesCard(colorScheme),
+                      const Gap(24),
 
-                  // Cloud Sync Section
-                  _buildSectionHeader('Cloud Sync'),
-                  const Gap(8),
-                  _buildCloudSyncCard(colorScheme),
-                  const Gap(24),
+                      // Cloud Sync Section
+                      _buildSectionHeader('Cloud Sync'),
+                      const Gap(8),
+                      _buildCloudSyncCard(colorScheme),
+                      const Gap(24),
 
-                  // Appearance Section
-                  _buildSectionHeader('Appearance'),
-                  const Gap(8),
-                  _buildThemeCard(colorScheme),
-                  const Gap(24),
+                      // Appearance Section
+                      _buildSectionHeader('Appearance'),
+                      const Gap(8),
+                      _buildThemeCard(colorScheme),
+                      const Gap(24),
 
-                  // Security Section
-                  _buildSectionHeader('Security'),
-                  const Gap(8),
-                  _buildSecurityCard(colorScheme),
-                  const Gap(24),
+                      // Security Section
+                      _buildSectionHeader('Security'),
+                      const Gap(8),
+                      _buildSecurityCard(colorScheme),
+                      const Gap(24),
 
-                  // Storage Section
-                  _buildSectionHeader('Storage & Data'),
-                  const Gap(8),
-                  _buildStorageCard(colorScheme),
-                  const Gap(24),
+                      // Storage Section
+                      _buildSectionHeader('Storage & Data'),
+                      const Gap(8),
+                      _buildStorageCard(colorScheme),
+                      const Gap(24),
 
-                  // About Section
-                  _buildSectionHeader('About'),
-                  const Gap(8),
-                  _buildAboutCard(colorScheme),
-                ]
-                .animate(interval: 50.ms)
-                .fadeIn(duration: 300.ms)
-                .slideX(begin: 0.05, end: 0),
+                      // About Section
+                      _buildSectionHeader('About'),
+                      const Gap(8),
+                      _buildAboutCard(colorScheme),
+                    ]
+                    .animate(interval: 50.ms)
+                    .fadeIn(duration: 300.ms)
+                    .slideX(begin: 0.05, end: 0),
+          ),
+        ),
       ),
     );
   }
@@ -556,11 +564,13 @@ class _SettingsPageState extends State<SettingsPage> {
     required ThemeMode value,
     required ColorScheme colorScheme,
   }) {
-    final isSelected = _selectedTheme == value;
+    // UPDATED: Using Riverpod to watch and set theme
+    final currentTheme = ref.watch(themeModeProvider);
+    final isSelected = currentTheme == value;
+
     return InkWell(
       onTap: () {
-        setState(() => _selectedTheme = value);
-        widget.onThemeModeChanged(value);
+        ref.read(themeModeProvider.notifier).setThemeMode(value);
       },
       borderRadius: BorderRadius.circular(8),
       child: Padding(
@@ -731,6 +741,31 @@ class _SettingsPageState extends State<SettingsPage> {
               onTap: () => _launchUrl(
                 'mailto:info@maninder.co.in?subject=DocScanner+%20Support',
               ),
+            ),
+            _buildAboutLink(
+              icon: Icons.bug_report_outlined,
+              label: 'Copy Debug Info',
+              onTap: () async {
+                final token =
+                    MessagingService.instance.fcmToken ?? 'Not available';
+                await Clipboard.setData(
+                  ClipboardData(
+                    text: 'Version: $_appVersion\nFCM Token: $token',
+                  ),
+                );
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Debug info copied to clipboard'),
+                    ),
+                  );
+                }
+              },
+            ),
+            _buildAboutLink(
+              icon: Icons.error_outline,
+              label: 'Force Crash (Test)',
+              onTap: () => FirebaseCrashlytics.instance.crash(),
             ),
           ],
         ),

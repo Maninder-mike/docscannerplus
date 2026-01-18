@@ -40,18 +40,34 @@ class SyncService {
 
       // 2. Upload missing local files
       for (final doc in localDocs) {
-        if (doc.filePath == null) continue;
+        debugPrint(
+          'SyncService: Checking doc ${doc.id} - filePath: ${doc.filePath}',
+        );
+
+        if (doc.filePath == null) {
+          debugPrint('SyncService: Skipping doc ${doc.id} - no filePath');
+          continue;
+        }
 
         final file = File(doc.filePath!);
-        if (!await file.exists()) continue;
+        if (!await file.exists()) {
+          debugPrint(
+            'SyncService: Skipping doc ${doc.id} - file does not exist',
+          );
+          continue;
+        }
 
         final fileName = path.basename(doc.filePath!);
+        debugPrint('SyncService: Doc filename: $fileName');
 
         // Simple check: exists in cloud by name?
         if (!cloudFiles.values.contains(fileName)) {
           debugPrint('SyncService: Uploading $fileName...');
-          await _cloudRepo.uploadFile(file, fileName);
+          final result = await _cloudRepo.uploadFile(file, fileName);
+          debugPrint('SyncService: Upload result: $result');
           uploaded++;
+        } else {
+          debugPrint('SyncService: $fileName already in cloud, skipping');
         }
       }
 

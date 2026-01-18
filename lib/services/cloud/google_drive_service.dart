@@ -6,6 +6,8 @@ import 'package:googleapis/drive/v3.dart' as drive;
 import 'package:flutter/foundation.dart';
 
 class GoogleDriveService implements CloudStorageService {
+  static const String _appFolderName = 'DocScanner+';
+
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     scopes: [
       drive.DriveApi.driveFileScope, // Access to files created by the app
@@ -15,6 +17,7 @@ class GoogleDriveService implements CloudStorageService {
 
   drive.DriveApi? _driveApi;
   GoogleSignInAccount? _currentUser;
+  String? _appFolderId;
 
   @override
   String get providerId => 'google_drive';
@@ -28,6 +31,7 @@ class GoogleDriveService implements CloudStorageService {
       _currentUser = await _googleSignIn.signIn();
       if (_currentUser != null) {
         await _initializeDriveApi();
+        await _ensureAppFolderExists();
         return true;
       }
       return false;
@@ -42,6 +46,7 @@ class GoogleDriveService implements CloudStorageService {
     await _googleSignIn.signOut();
     _currentUser = null;
     _driveApi = null;
+    _appFolderId = null;
   }
 
   @override
@@ -50,6 +55,7 @@ class GoogleDriveService implements CloudStorageService {
       _currentUser = await _googleSignIn.signInSilently();
       if (_currentUser != null) {
         await _initializeDriveApi();
+        await _ensureAppFolderExists();
         return true;
       }
       return false;
@@ -75,20 +81,48 @@ class GoogleDriveService implements CloudStorageService {
     }
   }
 
+  /// Finds or creates the app folder in Drive
+  Future<void> _ensureAppFolderExists() async {
+    if (_driveApi == null) return;
+
+    try {
+      // Search for existing folder
+      final query =
+          "name = '$_appFolderName' and mimeType = 'application/vnd.google-apps.folder' and trashed = false";
+      final fileList = await _driveApi!.files.list(q: query, spaces: 'drive');
+
+      if (fileList.files != null && fileList.files!.isNotEmpty) {
+        _appFolderId = fileList.files!.first.id;
+        debugPrint('Found existing DocScanner+ folder: $_appFolderId');
+      } else {
+        // Create the folder
+        final folder = drive.File()
+          ..name = _appFolderName
+          ..mimeType = 'application/vnd.google-apps.folder';
+
+        final created = await _driveApi!.files.create(folder);
+        _appFolderId = created.id;
+        debugPrint('Created DocScanner+ folder: $_appFolderId');
+      }
+    } catch (e) {
+      debugPrint('Failed to ensure app folder: $e');
+    }
+  }
+
   @override
   Future<String?> uploadFile(File file, String destinationName) async {
     if (_driveApi == null) return null;
 
     try {
+      // Ensure folder exists before upload
+      if (_appFolderId == null) {
+        await _ensureAppFolderExists();
+      }
+
       final media = drive.Media(file.openRead(), file.lengthSync());
-      final driveFile = drive.File()..name = destinationName
-      // Save to 'appDataFolder' so it's hidden from user's main drive
-      // but accessible by the app. Or use null to save to root.
-      // For backup, appDataFolder is cleaner. For export, root is better.
-      // Let's stick to root for now so users can see their files,
-      // or a specific folder if we find/create one.
-      // For simplicity, let's just upload to root for now.
-      ;
+      final driveFile = drive.File()
+        ..name = destinationName
+        ..parents = _appFolderId != null ? [_appFolderId!] : null;
 
       final result = await _driveApi!.files.create(
         driveFile,
@@ -139,10 +173,17 @@ class GoogleDriveService implements CloudStorageService {
     if (_driveApi == null) return {};
 
     try {
-      final fileList = await _driveApi!.files.list(
-        spaces: 'drive',
-        q: "trashed = false", // Filter out trashed files
-      );
+      // Ensure folder exists
+      if (_appFolderId == null) {
+        await _ensureAppFolderExists();
+      }
+
+      // List files only from our app folder
+      final query = _appFolderId != null
+          ? "'$_appFolderId' in parents and trashed = false"
+          : "trashed = false";
+
+      final fileList = await _driveApi!.files.list(spaces: 'drive', q: query);
 
       final map = <String, String>{};
       if (fileList.files != null) {

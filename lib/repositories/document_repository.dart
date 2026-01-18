@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:docscannerplus/models/document_model.dart';
 import 'package:flutter/foundation.dart';
-import 'package:isar/isar.dart';
+import 'package:isar_community/isar.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -66,6 +66,16 @@ class DocumentRepository {
         .deletedAtIsNull()
         .sortByCreatedAtDesc()
         .findAll();
+  }
+
+  /// Watch active documents (stream updates).
+  Stream<List<DocumentModel>> watchActiveDocuments() async* {
+    final isar = await _db;
+    yield* isar.documentModels
+        .filter()
+        .deletedAtIsNull()
+        .sortByCreatedAtDesc()
+        .watch(fireImmediately: true);
   }
 
   /// Load only documents in a specific folder.

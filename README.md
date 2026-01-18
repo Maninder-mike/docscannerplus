@@ -1,9 +1,5 @@
 # DocScanner Plus
 
-<p align="center">
-  <img src="assets/images/play_store.png" width="120" alt="DocScanner Plus Logo"/>
-</p>
-
 A powerful document scanner app built with Flutter and Google ML Kit. Scan, organize, share, and extract text from your documents with ease.
 
 ## Features
@@ -15,10 +11,6 @@ A powerful document scanner app built with Flutter and Google ML Kit. Scan, orga
 - 🔍 **Multi-Select** - Batch operations on multiple documents
 - 💾 **Persistent Storage** - Documents saved locally and persist across sessions
 
-## Screenshots
-
-<!-- Add screenshots here -->
-
 ## Getting Started
 
 ### Prerequisites
@@ -26,12 +18,13 @@ A powerful document scanner app built with Flutter and Google ML Kit. Scan, orga
 - Flutter SDK ^3.10.7
 - Android Studio or VS Code
 - Android device/emulator (Android 21+)
+- iOS device/simulator (iOS 13+)
 
 ### Installation
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/docscannerplus.git
+git clone https://github.com/Maninder-mike/docscannerplus.git
 cd docscannerplus
 
 # Install dependencies
@@ -61,10 +54,12 @@ flutter build appbundle --release
 - **Google ML Kit Text Recognition** - OCR functionality
 - **SharedPreferences** - Local persistence
 - **share_plus** - Document sharing
+- **Isar** - Local database
+- **Riverpod** - State management
 
 ## Project Structure
 
-```
+```text
 lib/
 ├── main.dart                 # App entry point
 ├── home_page.dart            # Main UI with document grid
