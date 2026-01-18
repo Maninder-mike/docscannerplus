@@ -75,9 +75,16 @@ class FolderModel {
       id: json['id'] as String,
       name: json['name'] as String,
       color: _colorFromHex(json['color'] as String),
-      icon: IconData(json['iconCodePoint'] as int, fontFamily: 'MaterialIcons'),
+      icon: _getIconFromCodePoint(json['iconCodePoint'] as int),
       createdAt: DateTime.parse(json['createdAt'] as String),
     );
+  }
+
+  static IconData _getIconFromCodePoint(int codePoint) {
+    for (final icon in availableIcons) {
+      if (icon.codePoint == codePoint) return icon;
+    }
+    return Icons.folder;
   }
 
   FolderModel copyWith({String? name, Color? color, IconData? icon}) {
