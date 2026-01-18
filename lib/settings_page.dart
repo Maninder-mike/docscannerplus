@@ -736,10 +736,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   _launchUrl('https://www.maninder.co.in/docscannerplus/terms'),
             ),
             _buildAboutLink(
-              icon: Icons.mail_outlined,
-              label: 'Contact Support',
+              icon: Icons.help_outline,
+              label: 'Support',
               onTap: () => _launchUrl(
-                'mailto:info@maninder.co.in?subject=DocScanner+%20Support',
+                'https://www.maninder.co.in/docscannerplus/support',
               ),
             ),
             _buildAboutLink(
