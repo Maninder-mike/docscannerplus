@@ -3,7 +3,11 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf_combiner/pdf_combiner.dart';
 import 'package:path/path.dart' as path;
+import 'package:docscannerplus/models/watermark_options.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
 import 'package:uuid/uuid.dart';
+import 'dart:math';
 
 /// Service for handling PDF operations like merging and text extraction.
 class PdfService {
@@ -60,11 +64,66 @@ class PdfService {
     }
   }
 
-  /// OCR is already handled by scanner, but this could be useful for
-  /// re-running OCR on imported PDFs.
-  /// This is a placeholder for future implementation.
+  /// Create a PDF from a list of image paths.
+  Future<String?> imagesToPdf(
+    List<String> imagePaths,
+    String outputName, {
+    WatermarkOptions? watermark,
+  }) async {
+    try {
+      final pdf = pw.Document();
+
+      for (final imagePath in imagePaths) {
+        final image = pw.MemoryImage(File(imagePath).readAsBytesSync());
+
+        pdf.addPage(
+          pw.Page(
+            pageFormat: PdfPageFormat.a4,
+            build: (pw.Context context) {
+              return pw.Stack(
+                fit: pw.StackFit.expand,
+                children: [
+                  pw.Center(child: pw.Image(image)),
+                  if (watermark != null)
+                    pw.Center(
+                      child: pw.Transform.rotate(
+                        angle: -pi / 4,
+                        child: pw.Opacity(
+                          opacity: watermark.opacity,
+                          child: pw.Text(
+                            watermark.text,
+                            style: pw.TextStyle(
+                              fontSize: watermark.size,
+                              fontWeight: pw.FontWeight.bold,
+                              color: PdfColors.grey,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+        );
+      }
+
+      final appDir = await getApplicationDocumentsDirectory();
+      final suffix = watermark != null ? '_watermarked' : '_reordered';
+      final fileName = '${outputName.replaceAll(' ', '_')}$suffix.pdf';
+      final outputFile = File(path.join(appDir.path, fileName));
+
+      await outputFile.writeAsBytes(await pdf.save());
+      return outputFile.path;
+    } catch (e) {
+      debugPrint('PdfService: Error creating PDF from images: $e');
+      return null;
+    }
+  }
+
+  /// Extract text placeholder
   Future<String?> extractText(String pdfPath) async {
-    // Implementation for later if needed using text recognizer on images from PDF
+    // Implementation for later if needed
     return null;
   }
 }

@@ -7,12 +7,18 @@ import 'package:docscannerplus/models/document_model.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import 'package:docscannerplus/repositories/document_repository.dart';
+import 'package:docscannerplus/repositories/settings_repository.dart';
 import 'package:docscannerplus/search_page.dart';
 import 'package:docscannerplus/services/image_filter_service.dart';
 import 'package:docscannerplus/services/ocr_service.dart';
 import 'package:docscannerplus/services/thumbnail_service.dart';
 import 'package:docscannerplus/services/pdf_service.dart';
+import 'package:docscannerplus/signature_page.dart';
+import 'package:docscannerplus/add_signature_page.dart';
+import 'package:docscannerplus/watermark_dialog.dart';
+import 'package:docscannerplus/models/watermark_options.dart';
 import 'package:docscannerplus/settings_page.dart';
+import 'package:docscannerplus/reorder_pages_page.dart';
 import 'package:docscannerplus/trash_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -44,6 +50,10 @@ class _HomePageState extends State<HomePage> {
   bool _isSelectionMode = false;
   final Set<String> _selectedIds = {};
 
+  // Folder Filter State
+  String? _selectedFolderId;
+  String? _selectedFolderName;
+
   @override
   void initState() {
     super.initState();
@@ -60,8 +70,14 @@ class _HomePageState extends State<HomePage> {
     // Clean up expired trash items on app load
     await _repository.cleanupExpiredTrash();
 
-    // Load only active (non-deleted) documents
-    final docs = await _repository.loadActiveDocuments();
+    List<DocumentModel> docs;
+    if (_selectedFolderId != null) {
+      docs = await _repository.loadDocumentsInFolder(_selectedFolderId);
+    } else {
+      // Load all active (non-deleted) documents
+      docs = await _repository.loadActiveDocuments();
+    }
+
     // Sort by newest first
     docs.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     if (mounted) {
@@ -283,6 +299,7 @@ class _HomePageState extends State<HomePage> {
                 _shareAsPdf();
               },
             ),
+            /*
             ListTile(
               leading: const Icon(Icons.image),
               title: const Text('Images (JPG)'),
@@ -292,6 +309,7 @@ class _HomePageState extends State<HomePage> {
                 _shareAsImages();
               },
             ),
+            */
             ListTile(
               leading: const Icon(Icons.description),
               title: const Text('Text (TXT)'),
@@ -327,49 +345,6 @@ class _HomePageState extends State<HomePage> {
     // ignore: deprecated_member_use
     await Share.shareXFiles(files, text: 'Shared PDF documents');
     _clearSelection();
-  }
-
-  Future<void> _shareAsImages() async {
-    final selectedDocs = _selectedDocuments;
-    if (selectedDocs.isEmpty) return;
-
-    if (mounted) setState(() => _isLoading = true);
-    _clearSelection();
-
-    try {
-      final allImages = <XFile>[];
-      final service = PdfService();
-
-      for (final doc in selectedDocs) {
-        if (doc.filePath != null) {
-          final images = await service.pdfToImages(doc.filePath!);
-          allImages.addAll(images.map((p) => XFile(p)));
-        }
-      }
-
-      if (allImages.isEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('No images extracted')));
-        }
-        return;
-      }
-      // ignore: deprecated_member_use
-      await Share.shareXFiles(
-        allImages,
-        text: 'Sharing ${allImages.length} documents',
-      );
-    } catch (e) {
-      debugPrint('Share Images Error: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error sharing images: $e')));
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
   }
 
   Future<void> _shareAsText() async {
@@ -582,122 +557,304 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Future<void> _reorderPages() async {
+    if (_selectedIds.length != 1) return;
+    final doc = _documents.firstWhere((d) => d.id == _selectedIds.first);
+
+    if (doc.filePath == null) return;
+
+    if (mounted) setState(() => _isLoading = true);
+    _clearSelection(); // Clear selection before navigation to avoid UI glitches
+
+    try {
+      final service = PdfService();
+      // Extract images to temp directory
+      final images = await service.pdfToImages(doc.filePath!);
+
+      if (!mounted) return;
+
+      if (images.isEmpty) {
+        if (mounted) setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not extract pages')),
+        );
+        return;
+      }
+
+      if (mounted) setState(() => _isLoading = false);
+
+      final newOrder = await Navigator.push<List<String>>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ReorderPagesPage(imagePaths: images),
+        ),
+      );
+
+      if (newOrder != null) {
+        if (mounted) setState(() => _isLoading = true);
+
+        // Create new PDF from reordered images
+        final newPath = await service.imagesToPdf(newOrder, doc.title);
+
+        if (newPath != null) {
+          final updatedDoc = doc.copyWith(filePath: newPath);
+          await _repository.updateDocument(updatedDoc);
+
+          // Optionally delete old file if path changed and it's not needed
+          // But creating a new file is safer.
+          // We can delete the extracted temp images here if we want to be clean,
+          // but system temp cleans up eventually.
+
+          await _loadDocuments();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Pages reordered successfully')),
+            );
+          }
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Failed to save reordered PDF')),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Reorder Pages Error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _signDocument() async {
+    if (_selectedIds.length != 1) return;
+    final doc = _documents.firstWhere((d) => d.id == _selectedIds.first);
+    if (doc.filePath == null) return;
+
+    // 1. Capture Signature
+    final signature = await Navigator.push<Uint8List>(
+      context,
+      MaterialPageRoute(builder: (context) => const SignaturePage()),
+    );
+
+    if (signature == null) return;
+
+    _clearSelection();
+    if (mounted) setState(() => _isLoading = true);
+
+    try {
+      final service = PdfService();
+      // 2. Extract Pages
+      final images = await service.pdfToImages(doc.filePath!);
+
+      if (!mounted) return;
+
+      if (images.isEmpty) {
+        if (mounted) setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not extract pages')),
+        );
+        return;
+      }
+
+      if (mounted) setState(() => _isLoading = false);
+
+      // 3. Place Signature
+      final changed = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (context) =>
+              AddSignaturePage(imagePaths: images, signatureImage: signature),
+        ),
+      );
+
+      if (changed == true) {
+        if (mounted) setState(() => _isLoading = true);
+
+        // 4. Save new PDF
+        final newPath = await service.imagesToPdf(images, doc.title);
+
+        if (newPath != null) {
+          final updatedDoc = doc.copyWith(filePath: newPath);
+          await _repository.updateDocument(updatedDoc);
+          await _loadDocuments();
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Document signed successfully')),
+            );
+          }
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Failed to save signed PDF')),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Sign Document Error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _addWatermark() async {
+    if (_selectedIds.length != 1) return;
+    final doc = _documents.firstWhere((d) => d.id == _selectedIds.first);
+    if (doc.filePath == null) return;
+
+    // 1. Configure Watermark
+    final options = await showDialog<WatermarkOptions>(
+      context: context,
+      builder: (context) => const WatermarkDialog(),
+    );
+
+    if (options == null) return;
+
+    _clearSelection();
+    if (mounted) setState(() => _isLoading = true);
+
+    try {
+      final service = PdfService();
+      // 2. Extract Pages
+      final images = await service.pdfToImages(doc.filePath!);
+
+      if (!mounted) return;
+
+      if (images.isEmpty) {
+        if (mounted) setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not extract pages')),
+        );
+        return;
+      }
+
+      if (mounted) setState(() => _isLoading = false);
+
+      // 3. Create Watermarked PDF
+      if (mounted) setState(() => _isLoading = true);
+
+      final newPath = await service.imagesToPdf(
+        images,
+        doc.title,
+        watermark: options,
+      );
+
+      if (newPath != null) {
+        final updatedDoc = doc.copyWith(filePath: newPath);
+        await _repository.updateDocument(updatedDoc);
+        await _loadDocuments();
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Watermark added successfully')),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to save watermarked PDF')),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Watermark Error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   Widget _buildDrawer(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Drawer(
-      child: SafeArea(
-        child: Column(
-          children: [
-            // Header
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: colorScheme.primaryContainer.withValues(alpha: 0.3),
+    // Determine current index based on route?
+    // Since we navigate away for Folders/Trash, the primary destination stays 0.
+    // Ideally we'd have a navigation state, but for now we'll stick to a simple visual.
+
+    return NavigationDrawer(
+      selectedIndex: 0, // Always highlight 'All Documents' when on HomePage
+      onDestinationSelected: (index) {
+        Navigator.pop(context); // Close drawer
+        if (index == 1) _openFolders();
+        if (index == 2) _openTrash();
+        if (index == 3) _openSettings();
+      },
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(28, 16, 16, 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: colorScheme.primary,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Icon(
+                  Icons.document_scanner,
+                  color: Colors.white,
+                  size: 28,
+                ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: colorScheme.primary,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: const Icon(
-                      Icons.document_scanner,
-                      color: Colors.white,
-                      size: 28,
-                    ),
-                  ),
-                  const Gap(16),
-                  Text(
-                    'DocScanner+',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Text(
-                    '${_documents.length} documents',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
+              const Gap(16),
+              Text(
+                'DocScanner+',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
-            ),
-
-            const Gap(8),
-
-            // Menu Items
-            _buildDrawerItem(
-              icon: Icons.description_outlined,
-              label: 'All Documents',
-              isSelected: true,
-              onTap: () => Navigator.pop(context),
-            ),
-            _buildDrawerItem(
-              icon: Icons.folder_outlined,
-              label: 'Folders',
-              onTap: () {
-                Navigator.pop(context);
-                _openFolders();
-              },
-            ),
-            _buildDrawerItem(
-              icon: Icons.delete_outline,
-              label: 'Trash',
-              onTap: () {
-                Navigator.pop(context);
-                _openTrash();
-              },
-            ),
-
-            const Spacer(),
-            const Divider(),
-
-            _buildDrawerItem(
-              icon: Icons.settings_outlined,
-              label: 'Settings',
-              onTap: () {
-                Navigator.pop(context);
-                _openSettings();
-              },
-            ),
-
-            const Gap(8),
-          ],
+              Text(
+                '${_documents.length} documents',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildDrawerItem({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-    bool isSelected = false,
-  }) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return ListTile(
-      leading: Icon(
-        icon,
-        color: isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant,
-      ),
-      title: Text(
-        label,
-        style: TextStyle(
-          color: isSelected ? colorScheme.primary : null,
-          fontWeight: isSelected ? FontWeight.w600 : null,
+        const NavigationDrawerDestination(
+          icon: Icon(Icons.description_outlined),
+          selectedIcon: Icon(Icons.description),
+          label: Text('All Documents'),
         ),
-      ),
-      selected: isSelected,
-      selectedTileColor: colorScheme.primaryContainer.withValues(alpha: 0.3),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-      onTap: onTap,
+        const NavigationDrawerDestination(
+          icon: Icon(Icons.folder_outlined),
+          selectedIcon: Icon(Icons.folder),
+          label: Text('Folders'),
+        ),
+        const NavigationDrawerDestination(
+          icon: Icon(Icons.delete_outline),
+          selectedIcon: Icon(Icons.delete),
+          label: Text('Trash'),
+        ),
+        const Padding(
+          padding: EdgeInsets.fromLTRB(28, 16, 28, 10),
+          child: Divider(),
+        ),
+        const NavigationDrawerDestination(
+          icon: Icon(Icons.settings_outlined),
+          selectedIcon: Icon(Icons.settings),
+          label: Text('Settings'),
+        ),
+      ],
     );
   }
 
@@ -707,7 +864,7 @@ class _HomePageState extends State<HomePage> {
       drawer: _buildDrawer(context),
       body: CustomScrollView(
         slivers: [
-          SliverAppBar(
+          SliverAppBar.medium(
             title: Text(
               _isSelectionMode
                   ? '${_selectedIds.length} selected'
@@ -724,8 +881,8 @@ class _HomePageState extends State<HomePage> {
                       onPressed: () => Scaffold.of(context).openDrawer(),
                     ),
                   ),
-            floating: true,
-            pinned: true,
+            // floating: true, // Not used in .medium constructor
+            // pinned: true, // Implicitly true for medium/large usually, but configurable
             actions: _isSelectionMode
                 ? [
                     if (_selectedIds.length == 1) ...[
@@ -743,6 +900,21 @@ class _HomePageState extends State<HomePage> {
                         onPressed: _extractTextFromSelected,
                         icon: const Icon(Icons.text_fields),
                         tooltip: 'OCR',
+                      ),
+                      IconButton(
+                        onPressed: _reorderPages,
+                        icon: const Icon(Icons.sort),
+                        tooltip: 'Reorder Pages',
+                      ),
+                      IconButton(
+                        onPressed: _signDocument,
+                        icon: const Icon(Icons.draw),
+                        tooltip: 'Sign',
+                      ),
+                      IconButton(
+                        onPressed: _addWatermark,
+                        icon: const Icon(Icons.branding_watermark),
+                        tooltip: 'Watermark',
                       ),
                     ],
                     if (_selectedIds.length > 1)
@@ -764,10 +936,6 @@ class _HomePageState extends State<HomePage> {
                     IconButton(
                       onPressed: () => _openSearch(),
                       icon: const Icon(Icons.search),
-                    ),
-                    IconButton(
-                      onPressed: () => _openSettings(),
-                      icon: const Icon(Icons.settings_outlined),
                     ),
                   ],
           ),
@@ -809,7 +977,39 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
             )
-          else
+          else ...[
+            if (_selectedFolderId != null)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  child: Row(
+                    children: [
+                      InputChip(
+                        label: Text(_selectedFolderName ?? 'Folder'),
+                        avatar: const Icon(Icons.folder_outlined, size: 18),
+                        deleteIcon: const Icon(Icons.close, size: 18),
+                        onDeleted: () {
+                          setState(() {
+                            _selectedFolderId = null;
+                            _selectedFolderName = null;
+                          });
+                          _loadDocuments();
+                        },
+                        selected: true,
+                        showCheckmark: false,
+                        selectedColor: Theme.of(
+                          context,
+                        ).colorScheme.secondaryContainer,
+                        labelStyle: TextStyle(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSecondaryContainer,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               sliver: SliverGrid(
@@ -825,6 +1025,7 @@ class _HomePageState extends State<HomePage> {
                 }, childCount: _documents.length),
               ),
             ),
+          ],
         ],
       ),
       floatingActionButton: _isSelectionMode
@@ -1079,7 +1280,46 @@ class _HomePageState extends State<HomePage> {
           );
 
           await _repository.saveNewDocument(newDoc);
-          await _loadDocuments(); // Refresh list associated with persistence
+
+          // Auto-save to Files if enabled
+          try {
+            final settingsRepo = SettingsRepository();
+            final autoSave = await settingsRepo.loadAutoSaveToGallery();
+            // Note: Key/Method name still refers to Gallery, but UI is updated to "Files"
+            // We reuse the preference to avoid migration complexity for now.
+
+            if (autoSave) {
+              final appDir = await getApplicationDocumentsDirectory();
+              // For visibility, on Android we might want /storage/emulated/0/Documents/DocScannerPlus
+              // But getting permissions for that is harder.
+              // getApplicationDocumentsDirectory on iOS is visible if Info.plist allows.
+              // On Android it's app-private usually.
+              // For "Save to Files", maybe we should try to save to a more public Documents folder if possible?
+              // Let's stick to standard path_provider documents default which is safe.
+
+              // Create a clean filename
+              final safeTitle = newDoc.title.replaceAll(
+                RegExp(r'[^\w\s\-]'),
+                '',
+              );
+              final savePath = path.join(appDir.path, '$safeTitle.pdf');
+              await File(pdfPath).copy(savePath);
+
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'PDF auto-saved to: ${path.basename(savePath)}',
+                    ),
+                  ),
+                );
+              }
+            }
+          } catch (e) {
+            debugPrint('Auto-save error: $e');
+          }
+
+          await _loadDocuments(); // Refresh list associated with persistence hiding
         }
       }
     } catch (e) {
@@ -1143,7 +1383,11 @@ class _HomePageState extends State<HomePage> {
         builder: (context) => FoldersPage(
           onFolderSelected: (folderId, folderName) {
             Navigator.pop(context);
-            // TODO: Filter documents by folder
+            setState(() {
+              _selectedFolderId = folderId;
+              _selectedFolderName = folderName;
+            });
+            _loadDocuments();
           },
         ),
       ),

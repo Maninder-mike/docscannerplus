@@ -1,8 +1,16 @@
 import 'package:intl/intl.dart';
+import 'package:isar/isar.dart';
 import 'package:uuid/uuid.dart';
 
+part 'document_model.g.dart';
+
+@collection
 class DocumentModel {
+  Id isarId = Isar.autoIncrement; // Internal Isar ID
+
+  @Index(unique: true, replace: true)
   final String id;
+
   final String title;
   final String? filePath;
   final DateTime createdAt;
@@ -12,6 +20,7 @@ class DocumentModel {
   final String? ocrImagePath;
 
   // Folder support
+  @Index()
   final String? folderId;
 
   // Trash support
@@ -66,6 +75,7 @@ class DocumentModel {
     );
   }
 
+  // Legacy JSON support for migration if needed
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -102,6 +112,8 @@ class DocumentModel {
 
   DocumentModel copyWith({
     String? title,
+    String? filePath,
+    int? pageCount,
     String? extractedText,
     String? ocrImagePath,
     String? folderId,
@@ -114,9 +126,9 @@ class DocumentModel {
     return DocumentModel(
       id: id,
       title: title ?? this.title,
-      filePath: filePath,
+      filePath: filePath ?? this.filePath,
       createdAt: createdAt,
-      pageCount: pageCount,
+      pageCount: pageCount ?? this.pageCount,
       extractedText: extractedText ?? this.extractedText,
       ocrImagePath: ocrImagePath ?? this.ocrImagePath,
       folderId: clearFolderId ? null : (folderId ?? this.folderId),

@@ -1,0 +1,17 @@
+{
+  "appTitle": "DocScanner+",
+  "@appTitle": {
+    "description": "The title of the application"
+  },
+  "homeTitle": "Documents",
+  "settingsTitle": "Settings",
+  "searchHint": "Search documents...",
+  "emptyDocs": "No documents yet. Tap + to scan!",
+  "autoSavePdf": "Auto-Save PDF to Files",
+  "autoSavePdfSubtitle": "Automatically save scans as PDF to storage",
+  "defaultFilter": "Default Filter",
+  "theme": "Theme",
+  "system": "System",
+  "light": "Light",
+  "dark": "Dark"
+}

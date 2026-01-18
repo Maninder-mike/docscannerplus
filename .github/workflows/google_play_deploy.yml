@@ -1,13 +1,43 @@
-name: Deploy to Play Store
+name: Deploy to Play Store & Checks
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches: [ beta, develop ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ beta ]
 
 jobs:
-  deploy:
-    name: Deploy to Play Store
+  # 1. Quality Checks (Analyze, Format, Test)
+  quality:
+    name: Quality Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: 'stable'
+          cache: true
+      
+      - name: Get dependencies
+        run: flutter pub get
+      
+      - name: Analyze code
+        run: flutter analyze
+      
+      - name: Check formatting
+        run: dart format --set-exit-if-changed .
+      
+      - name: Run tests
+        run: flutter test
+
+  # 2. Build Check (Build APK to verify compilation on all commits)
+  build-check:
+    name: Verify Build (APK)
+    needs: quality
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,14 +55,42 @@ jobs:
           channel: 'stable'
           cache: true
       
-      - name: Set up Ruby
+      - name: Get dependencies
+        run: flutter pub get
+      
+      - name: Build APK (Debug/Release)
+        run: flutter build apk --release
+
+  # 3. Deploy (Only on Tags)
+  deploy:
+    name: Deploy to Play Store
+    needs: quality
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: 'stable'
+          cache: true
+      
+      - name: Set up Ruby (for Fastlane)
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.2'
           bundler-cache: true
           working-directory: android
       
-      - name: Get Flutter dependencies
+      - name: Get dependencies
         run: flutter pub get
       
       - name: Decode keystore

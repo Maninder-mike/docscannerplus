@@ -69,3 +69,8 @@ GoogleService-Info.plist
 # Environment files
 .env
 .env.*
+
+# Fastlane/Ruby vendor
+/android/vendor/
+/ios/vendor/
+/vendor/
