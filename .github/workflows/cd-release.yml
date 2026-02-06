@@ -120,6 +120,10 @@ jobs:
           bundler-cache: true
           working-directory: android
 
+      - name: Update Secure Dependencies
+        working-directory: android
+        run: bundle update aws-sdk-s3
+
       # Deploy to Play Store
       - name: Deploy to Play Store
         working-directory: android
