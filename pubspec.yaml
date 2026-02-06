@@ -81,7 +81,7 @@ dependencies:
   flutter_native_splash: ^2.4.4
   image_picker: ^1.1.2
   image_cropper: ^8.1.0
-  pdfrx: ^2.1.88
+  pdfrx: ^2.1.5
   printing: ^5.13.3
   carousel_slider: ^5.0.0
   feedback: ^3.1.1
