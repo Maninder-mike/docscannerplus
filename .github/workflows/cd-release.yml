@@ -1,20 +1,38 @@
-name: Production Release
+name: Play Store Release
 
 on:
   push:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      track:
+        description: 'Play Store track'
+        required: true
+        default: 'alpha'
+        type: choice
+        options:
+          - internal
+          - alpha
+          - beta
+          - production
 
 permissions:
   contents: write
 
+env:
+  FLUTTER_VERSION: '3.32.5'
+  JAVA_VERSION: '17'
+
 jobs:
-  release:
+  build:
     name: Build & Deploy
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -22,26 +40,78 @@ jobs:
         id: version
         run: |
           VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: //;s/\+.*//')
-          echo "version=v$VERSION" >> $GITHUB_OUTPUT
+          BUILD_NUMBER=$(grep '^version:' pubspec.yaml | sed 's/.*+//')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
+          echo "📦 Version: $VERSION+$BUILD_NUMBER"
 
-      # Use Reusable Workflow for Setup
-      - name: Setup Environment
-        uses: ./.github/workflows/reusable-setup.yml
+      # Java Setup with Gradle Cache
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
 
-      # Securely Decode Secrets
+      # Gradle Cache for faster builds
+      - name: Gradle Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            android/.gradle
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      # Flutter Setup with Caching
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+          cache: true
+
+      # Pub Cache
+      - name: Pub Cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      # Prepare Signing Keys (using your actual secret names)
       - name: Prepare Signing Keys
-        env:
-          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          KEY_PROPERTIES: ${{ secrets.ANDROID_KEY_PROPERTIES }}
-          PLAY_STORE_KEY: ${{ secrets.PLAY_STORE_KEY }} # or GOOGLE_PLAY_JSON
         run: |
-          echo "$KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
-          echo "$KEY_PROPERTIES" > android/key.properties
-          echo "$PLAY_STORE_KEY" | base64 --decode > android/fastlane/play-store-key.json
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/upload-keystore.jks
+          echo "storePassword=${{ secrets.STORE_PASSWORD }}" > android/key.properties
+          echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> android/key.properties
+          echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
+          echo "storeFile=upload-keystore.jks" >> android/key.properties
+          echo "${{ secrets.PLAY_STORE_KEY }}" | base64 --decode > android/fastlane/play-store-key.json
 
+      # Build with obfuscation and split debug info
       - name: Build App Bundle
-        run: flutter build appbundle --release --no-pub --dart-define=ONEDRIVE_CLIENT_ID=${{ secrets.ONEDRIVE_CLIENT_ID }}
+        run: |
+          flutter build appbundle --release \
+            --obfuscate \
+            --split-debug-info=build/debug-info \
+            --dart-define=ONEDRIVE_CLIENT_ID=${{ secrets.ONEDRIVE_CLIENT_ID }}
 
+      # Upload debug symbols to Crashlytics (optional but recommended)
+      - name: Upload Debug Symbols
+        if: success()
+        continue-on-error: true
+        run: |
+          if [ -d "build/debug-info" ]; then
+            echo "Debug symbols generated at build/debug-info"
+          fi
+
+      # Ruby + Fastlane with Bundler cache
       - name: Setup Fastlane
         uses: ruby/setup-ruby@v1
         with:
@@ -49,17 +119,30 @@ jobs:
           bundler-cache: true
           working-directory: android
 
+      # Deploy to Play Store
       - name: Deploy to Play Store
         working-directory: android
         env:
-          Supply_JSON_KEY: fastlane/play-store-key.json
-        run: bundle exec fastlane deploy_closed
+          SUPPLY_JSON_KEY: fastlane/play-store-key.json
+        run: |
+          TRACK="${{ github.event.inputs.track || 'alpha' }}"
+          echo "🚀 Deploying to $TRACK track..."
+          bundle exec fastlane upload_to_play_store \
+            --track "$TRACK" \
+            --aab ../build/app/outputs/bundle/release/app-release.aab \
+            --json_key fastlane/play-store-key.json \
+            --skip_upload_metadata \
+            --skip_upload_images \
+            --skip_upload_screenshots
 
+      # Create GitHub Release
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: build/app/outputs/bundle/release/app-release.aab
+          files: |
+            build/app/outputs/bundle/release/app-release.aab
           generate_release_notes: true
           draft: false
-          prerelease: false
+          prerelease: ${{ contains(github.ref, 'beta') || contains(github.ref, 'alpha') }}
+          name: DocScanner+ ${{ steps.version.outputs.version }}
