@@ -30,7 +30,7 @@ class _HomePageState extends ConsumerState<HomePage> {
     });
   }
 
-  late final HomeActions _actions;
+  late HomeActions _actions;
 
   @override
   void didChangeDependencies() {
