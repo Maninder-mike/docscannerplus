@@ -1,7 +1,7 @@
 import 'package:docscannerplus/features/settings/widgets/settings_group.dart';
 import 'package:docscannerplus/features/settings/widgets/settings_tile.dart';
 import 'package:docscannerplus/services/messaging_service.dart';
-import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';

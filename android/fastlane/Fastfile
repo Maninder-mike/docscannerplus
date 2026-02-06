@@ -56,6 +56,15 @@ platform :android do
     )
   end
 
+  desc "Deploy to beta testing track"
+  lane :deploy_beta do
+    upload_to_play_store(
+      track: 'beta',
+      aab: '../build/app/outputs/bundle/release/app-release.aab',
+      json_key: 'fastlane/play-store-key.json'
+    )
+  end
+
   desc "Build and deploy to production"
   lane :deploy_production do
     build_appbundle
