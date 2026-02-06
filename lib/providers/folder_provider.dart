@@ -1,3 +1,5 @@
+import 'package:docscannerplus/models/folder_model.dart';
+import 'package:docscannerplus/providers/document_provider.dart';
 import 'package:docscannerplus/providers/core_providers.dart';
 import 'package:docscannerplus/repositories/folder_repository.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -28,4 +30,18 @@ class SelectedFolderName extends _$SelectedFolderName {
   void set(String? name) {
     state = name;
   }
+}
+
+@riverpod
+Future<List<FolderModel>> folders(Ref ref) async {
+  final repository = ref.watch(folderRepositoryProvider);
+  return repository.loadFolders();
+}
+
+@riverpod
+Future<Map<String?, int>> folderStats(Ref ref) async {
+  // Watch document changes to auto-refresh stats
+  ref.watch(activeDocumentsProvider);
+  final docRepo = ref.watch(documentRepositoryProvider);
+  return docRepo.getDocumentCountByFolder();
 }

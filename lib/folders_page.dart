@@ -18,29 +18,91 @@ class FoldersPage extends ConsumerStatefulWidget {
 class _FoldersPageState extends ConsumerState<FoldersPage> {
   // _folderRepository is TODO: Migration to provider
   // final _folderRepository = FolderRepository();
-  List<FolderModel> _folders = [];
-  Map<String?, int> _documentCounts = {};
-  bool _isLoading = true;
-
   @override
-  void initState() {
-    super.initState();
-    _loadData();
-  }
+  Widget build(BuildContext context) {
+    final foldersAsync = ref.watch(foldersProvider);
+    final statsAsync = ref.watch(folderStatsProvider);
+    final colorScheme = Theme.of(context).colorScheme;
 
-  Future<void> _loadData() async {
-    final folderRepository = ref.read(folderRepositoryProvider);
-    final folders = await folderRepository.loadFolders();
-    final counts = await ref
-        .read(documentRepositoryProvider)
-        .getDocumentCountByFolder();
-    if (mounted) {
-      setState(() {
-        _folders = folders;
-        _documentCounts = counts;
-        _isLoading = false;
-      });
-    }
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Folders'),
+        actions: [
+          IconButton(
+            onPressed: () => _createFolder(),
+            icon: const Icon(Icons.create_new_folder_outlined),
+          ),
+        ],
+      ),
+      body: foldersAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (err, stack) => Center(child: Text('Error: $err')),
+        data: (folders) {
+          final stats = statsAsync.value ?? {};
+
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              // All Documents
+              _buildFolderTile(
+                name: 'All Documents',
+                icon: Icons.description,
+                color: colorScheme.primary,
+                count: stats.values.fold(0, (a, b) => a + b),
+                onTap: () => widget.onFolderSelected?.call(null, null),
+              ),
+              const Gap(8),
+
+              // Uncategorized
+              _buildFolderTile(
+                name: 'Uncategorized',
+                icon: Icons.folder_off_outlined,
+                color: colorScheme.outline,
+                count: stats[null] ?? 0,
+                onTap: () => widget.onFolderSelected?.call(
+                  'uncategorized',
+                  'Uncategorized',
+                ),
+              ),
+
+              if (folders.isNotEmpty) ...[
+                const Gap(16),
+                Text(
+                  'My Folders',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: colorScheme.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const Gap(8),
+              ],
+
+              ...folders.asMap().entries.map((entry) {
+                final index = entry.key;
+                final folder = entry.value;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: _buildFolderTile(
+                    name: folder.name,
+                    icon: folder.icon,
+                    color: folder.color,
+                    count: stats[folder.id] ?? 0,
+                    onTap: () =>
+                        widget.onFolderSelected?.call(folder.id, folder.name),
+                    onLongPress: () => _showFolderOptions(folder),
+                  ).animate().fadeIn(delay: (index * 50).ms),
+                );
+              }),
+            ],
+          );
+        },
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _createFolder(),
+        label: const Text('New Folder'),
+        icon: const Icon(Icons.add),
+      ),
+    );
   }
 
   Future<void> _createFolder() async {
@@ -51,7 +113,7 @@ class _FoldersPageState extends ConsumerState<FoldersPage> {
 
     if (result != null) {
       await ref.read(folderRepositoryProvider).addFolder(result);
-      await _loadData();
+      ref.invalidate(foldersProvider);
     }
   }
 
@@ -63,7 +125,7 @@ class _FoldersPageState extends ConsumerState<FoldersPage> {
 
     if (result != null) {
       await ref.read(folderRepositoryProvider).updateFolder(result);
-      await _loadData();
+      ref.invalidate(foldersProvider);
     }
   }
 
@@ -99,87 +161,9 @@ class _FoldersPageState extends ConsumerState<FoldersPage> {
         await docRepo.moveToFolder(doc, null);
       }
       await ref.read(folderRepositoryProvider).deleteFolder(folder.id);
-      await _loadData();
+      ref.invalidate(foldersProvider);
+      ref.invalidate(folderStatsProvider); // Force stats refresh as docs moved
     }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Folders'),
-        actions: [
-          IconButton(
-            onPressed: _createFolder,
-            icon: const Icon(Icons.create_new_folder_outlined),
-          ),
-        ],
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                // All Documents
-                _buildFolderTile(
-                  name: 'All Documents',
-                  icon: Icons.description,
-                  color: colorScheme.primary,
-                  count: _documentCounts.values.fold(0, (a, b) => a + b),
-                  onTap: () => widget.onFolderSelected?.call(null, null),
-                ),
-                const Gap(8),
-
-                // Uncategorized
-                _buildFolderTile(
-                  name: 'Uncategorized',
-                  icon: Icons.folder_off_outlined,
-                  color: colorScheme.outline,
-                  count: _documentCounts[null] ?? 0,
-                  onTap: () => widget.onFolderSelected?.call(
-                    'uncategorized',
-                    'Uncategorized',
-                  ),
-                ),
-
-                if (_folders.isNotEmpty) ...[
-                  const Gap(16),
-                  Text(
-                    'My Folders',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      color: colorScheme.primary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const Gap(8),
-                ],
-
-                ..._folders.asMap().entries.map((entry) {
-                  final index = entry.key;
-                  final folder = entry.value;
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: _buildFolderTile(
-                      name: folder.name,
-                      icon: folder.icon,
-                      color: folder.color,
-                      count: _documentCounts[folder.id] ?? 0,
-                      onTap: () =>
-                          widget.onFolderSelected?.call(folder.id, folder.name),
-                      onLongPress: () => _showFolderOptions(folder),
-                    ).animate().fadeIn(delay: (index * 50).ms),
-                  );
-                }),
-              ],
-            ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _createFolder,
-        label: const Text('New Folder'),
-        icon: const Icon(Icons.add),
-      ),
-    );
   }
 
   Widget _buildFolderTile({

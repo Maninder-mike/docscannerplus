@@ -161,3 +161,85 @@ abstract class _$SelectedFolderName extends $Notifier<String?> {
     element.handleValue(ref, created);
   }
 }
+
+@ProviderFor(folders)
+const foldersProvider = FoldersProvider._();
+
+final class FoldersProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<List<FolderModel>>,
+          List<FolderModel>,
+          FutureOr<List<FolderModel>>
+        >
+    with
+        $FutureModifier<List<FolderModel>>,
+        $FutureProvider<List<FolderModel>> {
+  const FoldersProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'foldersProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$foldersHash();
+
+  @$internal
+  @override
+  $FutureProviderElement<List<FolderModel>> $createElement(
+    $ProviderPointer pointer,
+  ) => $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<List<FolderModel>> create(Ref ref) {
+    return folders(ref);
+  }
+}
+
+String _$foldersHash() => r'ae1599056cd35e8f65096265c40779ce23aa2b14';
+
+@ProviderFor(folderStats)
+const folderStatsProvider = FolderStatsProvider._();
+
+final class FolderStatsProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<Map<String?, int>>,
+          Map<String?, int>,
+          FutureOr<Map<String?, int>>
+        >
+    with
+        $FutureModifier<Map<String?, int>>,
+        $FutureProvider<Map<String?, int>> {
+  const FolderStatsProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'folderStatsProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$folderStatsHash();
+
+  @$internal
+  @override
+  $FutureProviderElement<Map<String?, int>> $createElement(
+    $ProviderPointer pointer,
+  ) => $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<Map<String?, int>> create(Ref ref) {
+    return folderStats(ref);
+  }
+}
+
+String _$folderStatsHash() => r'e2a7d3313057e7767bca3d7c2aedc14ddedfeeef';
