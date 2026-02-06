@@ -53,7 +53,7 @@ jobs:
         working-directory: android
         env:
           Supply_JSON_KEY: fastlane/play-store-key.json
-        run: bundle exec fastlane deploy_beta
+        run: bundle exec fastlane deploy_closed
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

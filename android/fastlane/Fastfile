@@ -56,10 +56,10 @@ platform :android do
     )
   end
 
-  desc "Deploy to beta testing track"
-  lane :deploy_beta do
+  desc "Deploy to closed testing track"
+  lane :deploy_closed do
     upload_to_play_store(
-      track: 'beta',
+      track: 'alpha',
       aab: '../build/app/outputs/bundle/release/app-release.aab',
       json_key: 'fastlane/play-store-key.json'
     )
