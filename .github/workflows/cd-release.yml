@@ -93,6 +93,7 @@ jobs:
           echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
           echo "storeFile=upload-keystore.jks" >> android/key.properties
           echo "${{ secrets.PLAY_STORE_KEY }}" | base64 --decode > android/fastlane/play-store-key.json
+          echo "${{ secrets.GOOGLE_SERVICES_JSON }}" | base64 --decode > android/app/google-services.json
 
       # Build with obfuscation and split debug info
       - name: Build App Bundle
