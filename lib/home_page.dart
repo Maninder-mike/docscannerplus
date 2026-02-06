@@ -4,24 +4,27 @@ import 'package:docscannerplus/add_signature_page.dart';
 import 'package:docscannerplus/models/document_model.dart';
 import 'package:docscannerplus/models/watermark_options.dart';
 import 'package:docscannerplus/providers/document_provider.dart';
-import 'package:docscannerplus/providers/folder_provider.dart';
+import 'package:docscannerplus/providers/core_providers.dart';
 import 'package:docscannerplus/providers/selection_provider.dart';
 import 'package:docscannerplus/reorder_pages_page.dart';
 import 'package:docscannerplus/repositories/document_repository.dart';
 import 'package:docscannerplus/search_page.dart';
-import 'package:docscannerplus/services/ocr_service.dart';
 import 'package:docscannerplus/services/pdf_service.dart';
 import 'package:docscannerplus/signature_page.dart';
 import 'package:docscannerplus/watermark_dialog.dart';
 import 'package:docscannerplus/widgets/document_list.dart';
 import 'package:docscannerplus/widgets/home_drawer.dart';
 import 'package:docscannerplus/widgets/scanner_fab.dart';
-import 'package:docscannerplus/widgets/announcement_banner.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
+import 'package:docscannerplus/features/home/dialogs/extracted_text_dialog.dart';
+import 'package:docscannerplus/features/home/dialogs/merge_dialog.dart';
+import 'package:docscannerplus/features/home/dialogs/rename_dialog.dart';
+import 'package:docscannerplus/features/home/dialogs/share_options_sheet.dart';
+import 'package:docscannerplus/features/home/widgets/home_app_bar.dart';
 import 'package:share_plus/share_plus.dart';
 
 class HomePage extends ConsumerStatefulWidget {
@@ -33,7 +36,16 @@ class HomePage extends ConsumerStatefulWidget {
 
 class _HomePageState extends ConsumerState<HomePage> {
   bool _isLoading = false;
-  final _ocrService = OcrService(); // Assuming this service exists
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  @override
+  void initState() {
+    super.initState();
+    // Defer logging to ensure provider is ready if needed, mostly for safety
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(analyticsServiceProvider).logScreenView(screenName: 'home_page');
+    });
+  }
 
   DocumentRepository get _repository => ref.read(documentRepositoryProvider);
 
@@ -114,31 +126,9 @@ class _HomePageState extends ConsumerState<HomePage> {
       orElse: () => _selectedDocuments.first,
     );
 
-    final controller = TextEditingController(text: doc.title);
     final newTitle = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Rename Document'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(
-            labelText: 'Title',
-            border: OutlineInputBorder(),
-          ),
-          autofocus: true,
-          textCapitalization: TextCapitalization.sentences,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text.trim()),
-            child: const Text('Rename'),
-          ),
-        ],
-      ),
+      builder: (context) => RenameDialog(initialTitle: doc.title),
     );
 
     if (newTitle == null || newTitle.isEmpty || newTitle == doc.title) return;
@@ -151,30 +141,9 @@ class _HomePageState extends ConsumerState<HomePage> {
   Future<void> _mergeSelectedDocuments() async {
     if (_selectedIds.length < 2) return;
 
-    final controller = TextEditingController(text: 'Merged Document');
     final name = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Merge Documents'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(
-            labelText: 'Document Name',
-            border: OutlineInputBorder(),
-          ),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text.trim()),
-            child: const Text('Merge'),
-          ),
-        ],
-      ),
+      builder: (context) => const MergeDialog(),
     );
 
     if (name == null || name.isEmpty) return;
@@ -241,36 +210,11 @@ class _HomePageState extends ConsumerState<HomePage> {
 
     showModalBottomSheet(
       context: context,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Export As', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 16),
-            ListTile(
-              leading: const Icon(Icons.picture_as_pdf),
-              title: const Text('PDF Document'),
-              subtitle: const Text('Best for printing and sharing'),
-              onTap: () {
-                Navigator.pop(context);
-                _shareAsPdf(selectedDocs);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.description),
-              title: const Text('Text (TXT)'),
-              subtitle: const Text('Best for editing content'),
-              enabled: selectedDocs.any(
-                (d) => d.extractedText != null && d.extractedText!.isNotEmpty,
-              ),
-              onTap: () {
-                Navigator.pop(context);
-                _shareAsText(selectedDocs);
-              },
-            ),
-          ],
+      builder: (context) => ShareOptionsSheet(
+        onSharePdf: () => _shareAsPdf(selectedDocs),
+        onShareText: () => _shareAsText(selectedDocs),
+        hasTextContent: selectedDocs.any(
+          (d) => d.extractedText != null && d.extractedText!.isNotEmpty,
         ),
       ),
     );
@@ -287,6 +231,7 @@ class _HomePageState extends ConsumerState<HomePage> {
     if (files.isEmpty) return;
     // ignore: deprecated_member_use
     await Share.shareXFiles(files, text: 'Shared PDF documents');
+    ref.read(analyticsServiceProvider).logFeatureUsed('share_pdf');
     _clearSelection();
   }
 
@@ -320,6 +265,7 @@ class _HomePageState extends ConsumerState<HomePage> {
 
       // ignore: deprecated_member_use
       await Share.shareXFiles(files, text: 'Shared text via DocScanner+');
+      ref.read(analyticsServiceProvider).logFeatureUsed('share_text');
     } catch (e) {
       debugPrint('Share Text Error: $e');
       if (mounted) {
@@ -403,7 +349,8 @@ class _HomePageState extends ConsumerState<HomePage> {
     }
 
     try {
-      final text = await _ocrService.extractText(imagePathToUse);
+      final ocrService = ref.read(ocrServiceProvider);
+      final text = await ocrService.extractText(imagePathToUse);
       if (!mounted) return;
       Navigator.pop(context); // Close loading dialog
 
@@ -434,27 +381,7 @@ class _HomePageState extends ConsumerState<HomePage> {
   void _showExtractedTextDialog(DocumentModel doc) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Extracted Text'),
-        content: SingleChildScrollView(
-          child: SelectableText(doc.extractedText ?? ''),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Clipboard.setData(ClipboardData(text: doc.extractedText ?? ''));
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Copied to clipboard')),
-              );
-            },
-            child: const Text('Copy'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
+      builder: (context) => ExtractedTextDialog(text: doc.extractedText ?? ''),
     );
   }
 
@@ -611,129 +538,38 @@ class _HomePageState extends ConsumerState<HomePage> {
   @override
   Widget build(BuildContext context) {
     final isSelectionMode = ref.watch(isSelectionModeProvider);
-    final selectedCount = ref.watch(selectionProvider).length;
-    final selectedFolderId = ref.watch(selectedFolderProvider);
-    final selectedFolderName = ref.watch(selectedFolderNameProvider);
 
     return Scaffold(
+      key: _scaffoldKey,
       drawer: const HomeDrawer(),
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar.medium(
-            title: Text(
-              isSelectionMode ? '$selectedCount selected' : 'DocScanner+',
+      body: NotificationListener<ScrollNotification>(
+        onNotification: (notification) {
+          if (notification is ScrollEndNotification &&
+              notification.metrics.extentAfter < 500) {
+            ref.read(documentLimitProvider.notifier).increase();
+          }
+          return false;
+        },
+        child: CustomScrollView(
+          slivers: [
+            HomeAppBar(
+              onClearSelection: _clearSelection,
+              onOpenDrawer: () => _scaffoldKey.currentState?.openDrawer(),
+              onRename: _renameSelectedDocument,
+              onEditTags: _editTags,
+              onExtractText: _extractTextFromSelected,
+              onReorderPages: _reorderPages,
+              onSignDocument: _signDocument,
+              onAddWatermark: _addWatermark,
+              onMerge: _mergeSelectedDocuments,
+              onShare: _shareSelectedDocuments,
+              onDelete: _deleteSelectedDocuments,
+              onSearch: _openSearch,
+              isLoading: _isLoading,
             ),
-            leading: isSelectionMode
-                ? IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: _clearSelection,
-                  )
-                : Builder(
-                    builder: (context) => IconButton(
-                      icon: const Icon(Icons.menu),
-                      onPressed: () => Scaffold.of(context).openDrawer(),
-                    ),
-                  ),
-            actions: isSelectionMode
-                ? [
-                    if (selectedCount == 1) ...[
-                      IconButton(
-                        onPressed: _renameSelectedDocument,
-                        icon: const Icon(Icons.edit),
-                        tooltip: 'Rename',
-                      ),
-                      IconButton(
-                        onPressed: _editTags,
-                        icon: const Icon(Icons.label),
-                        tooltip: 'Edit Tags',
-                      ),
-                      IconButton(
-                        onPressed: _extractTextFromSelected,
-                        icon: const Icon(Icons.text_fields),
-                        tooltip: 'OCR',
-                      ),
-                      IconButton(
-                        onPressed: _reorderPages,
-                        icon: const Icon(Icons.sort),
-                        tooltip: 'Reorder Pages',
-                      ),
-                      IconButton(
-                        onPressed: _signDocument,
-                        icon: const Icon(Icons.draw),
-                        tooltip: 'Sign',
-                      ),
-                      IconButton(
-                        onPressed: _addWatermark,
-                        icon: const Icon(Icons.branding_watermark),
-                        tooltip: 'Watermark',
-                      ),
-                    ],
-                    if (selectedCount > 1)
-                      IconButton(
-                        onPressed: _mergeSelectedDocuments,
-                        icon: const Icon(Icons.merge_type),
-                        tooltip: 'Merge',
-                      ),
-                    IconButton(
-                      onPressed: _shareSelectedDocuments,
-                      icon: const Icon(Icons.share),
-                    ),
-                    IconButton(
-                      onPressed: _deleteSelectedDocuments,
-                      icon: const Icon(Icons.delete),
-                    ),
-                  ]
-                : [
-                    IconButton(
-                      onPressed: () => _openSearch(),
-                      icon: const Icon(Icons.search),
-                    ),
-                  ],
-          ),
-          if (_isLoading)
-            const SliverFillRemaining(
-              child: Center(child: CircularProgressIndicator()),
-            )
-          else ...[
-            const AnnouncementBanner(),
-            if (selectedFolderId != null)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                  child: Row(
-                    children: [
-                      InputChip(
-                        label: Text(selectedFolderName ?? 'Folder'),
-                        avatar: const Icon(Icons.folder_outlined, size: 18),
-                        deleteIcon: const Icon(Icons.close, size: 18),
-                        onDeleted: () {
-                          // Clear folder selection
-                          ref
-                              .read(selectedFolderProvider.notifier)
-                              .select(null);
-                          ref
-                              .read(selectedFolderNameProvider.notifier)
-                              .set(null);
-                        },
-                        selected: true,
-                        showCheckmark: false,
-                        selectedColor: Theme.of(
-                          context,
-                        ).colorScheme.secondaryContainer,
-                        labelStyle: TextStyle(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.onSecondaryContainer,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-            const DocumentList(),
+            if (!_isLoading) const DocumentList(),
           ],
-        ],
+        ),
       ),
       floatingActionButton: isSelectionMode ? null : const ScannerFab(),
     );

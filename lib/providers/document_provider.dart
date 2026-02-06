@@ -1,16 +1,30 @@
 import 'package:docscannerplus/models/document_model.dart';
 import 'package:docscannerplus/repositories/document_repository.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:docscannerplus/providers/core_providers.dart';
 
-/// Provides the DocumentRepository instance.
-final documentRepositoryProvider = Provider<DocumentRepository>((ref) {
-  return DocumentRepository();
-});
+part 'document_provider.g.dart';
 
-/// Streams the list of active documents from the local database.
-final activeDocumentsProvider = StreamProvider.autoDispose<List<DocumentModel>>(
-  (ref) async* {
-    final repository = ref.watch(documentRepositoryProvider);
-    yield* repository.watchActiveDocuments();
-  },
-);
+@riverpod
+DocumentRepository documentRepository(Ref ref) {
+  final isar = ref.watch(isarProvider);
+  final prefs = ref.watch(sharedPreferencesProvider);
+  return DocumentRepository(isar, prefs);
+}
+
+@riverpod
+class DocumentLimit extends _$DocumentLimit {
+  @override
+  int build() => 20;
+
+  void increase() {
+    state += 20;
+  }
+}
+
+@riverpod
+Stream<List<DocumentModel>> activeDocuments(Ref ref) {
+  final repository = ref.watch(documentRepositoryProvider);
+  final limit = ref.watch(documentLimitProvider);
+  return repository.watchActiveDocuments(limit: limit);
+}

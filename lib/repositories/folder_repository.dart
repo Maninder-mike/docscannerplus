@@ -5,11 +5,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// Repository for persisting folders.
 class FolderRepository {
+  final SharedPreferences _prefs;
+
+  FolderRepository(this._prefs);
+
   static const String _storageKey = 'folders';
 
   Future<List<FolderModel>> loadFolders() async {
-    final prefs = await SharedPreferences.getInstance();
-    final jsonString = prefs.getString(_storageKey);
+    final jsonString = _prefs.getString(_storageKey);
     if (jsonString == null) return [];
 
     try {
@@ -23,9 +26,8 @@ class FolderRepository {
   }
 
   Future<void> saveFolders(List<FolderModel> folders) async {
-    final prefs = await SharedPreferences.getInstance();
     final jsonList = folders.map((f) => f.toJson()).toList();
-    await prefs.setString(_storageKey, jsonEncode(jsonList));
+    await _prefs.setString(_storageKey, jsonEncode(jsonList));
   }
 
   Future<void> addFolder(FolderModel folder) async {

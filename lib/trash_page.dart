@@ -1,18 +1,19 @@
 import 'package:docscannerplus/models/document_model.dart';
-import 'package:docscannerplus/repositories/document_repository.dart';
+import 'package:docscannerplus/providers/document_provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:gap/gap.dart';
 
-class TrashPage extends StatefulWidget {
+class TrashPage extends ConsumerStatefulWidget {
   const TrashPage({super.key});
 
   @override
-  State<TrashPage> createState() => _TrashPageState();
+  ConsumerState<TrashPage> createState() => _TrashPageState();
 }
 
-class _TrashPageState extends State<TrashPage> {
-  final _repository = DocumentRepository();
+class _TrashPageState extends ConsumerState<TrashPage> {
+  // _repository is replaced by ref.read(documentRepositoryProvider)
   List<DocumentModel> _trashedDocuments = [];
   bool _isLoading = true;
 
@@ -23,7 +24,9 @@ class _TrashPageState extends State<TrashPage> {
   }
 
   Future<void> _loadTrashedDocuments() async {
-    final docs = await _repository.loadTrashedDocuments();
+    final docs = await ref
+        .read(documentRepositoryProvider)
+        .loadTrashedDocuments();
     // Sort by most recently deleted first
     docs.sort(
       (a, b) => (b.deletedAt ?? DateTime.now()).compareTo(
@@ -39,7 +42,7 @@ class _TrashPageState extends State<TrashPage> {
   }
 
   Future<void> _restoreDocument(DocumentModel doc) async {
-    await _repository.restoreFromTrash(doc);
+    await ref.read(documentRepositoryProvider).restoreFromTrash(doc);
     await _loadTrashedDocuments();
     if (mounted) {
       ScaffoldMessenger.of(
@@ -73,7 +76,7 @@ class _TrashPageState extends State<TrashPage> {
     );
 
     if (confirmed == true) {
-      await _repository.deleteDocument(doc);
+      await ref.read(documentRepositoryProvider).deleteDocument(doc);
       await _loadTrashedDocuments();
     }
   }
@@ -105,7 +108,7 @@ class _TrashPageState extends State<TrashPage> {
     );
 
     if (confirmed == true) {
-      await _repository.emptyTrash();
+      await ref.read(documentRepositoryProvider).emptyTrash();
       await _loadTrashedDocuments();
       if (mounted) {
         ScaffoldMessenger.of(

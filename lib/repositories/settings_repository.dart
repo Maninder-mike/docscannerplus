@@ -3,6 +3,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// Repository for persisting app settings.
 class SettingsRepository {
+  final SharedPreferences _prefs;
+
+  SettingsRepository(this._prefs);
+
   static const String _themeModeKey = 'theme_mode';
   static const String _defaultFilterKey = 'default_filter';
   static const String _autoSaveGalleryKey = 'auto_save_gallery';
@@ -11,7 +15,6 @@ class SettingsRepository {
 
   /// Save the theme mode.
   Future<void> saveThemeMode(ThemeMode mode) async {
-    final prefs = await SharedPreferences.getInstance();
     String value;
     switch (mode) {
       case ThemeMode.light:
@@ -24,13 +27,12 @@ class SettingsRepository {
         value = 'system';
         break;
     }
-    await prefs.setString(_themeModeKey, value);
+    await _prefs.setString(_themeModeKey, value);
   }
 
   /// Load the saved theme mode.
-  Future<ThemeMode> loadThemeMode() async {
-    final prefs = await SharedPreferences.getInstance();
-    final value = prefs.getString(_themeModeKey);
+  ThemeMode loadThemeMode() {
+    final value = _prefs.getString(_themeModeKey);
     switch (value) {
       case 'light':
         return ThemeMode.light;
@@ -43,53 +45,50 @@ class SettingsRepository {
 
   /// Save the default filter setting.
   Future<void> saveDefaultFilter(String filterName) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_defaultFilterKey, filterName);
+    await _prefs.setString(_defaultFilterKey, filterName);
   }
 
   /// Load the default filter setting.
-  Future<String> loadDefaultFilter() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_defaultFilterKey) ?? 'original';
+  String loadDefaultFilter() {
+    return _prefs.getString(_defaultFilterKey) ?? 'original';
   }
 
   /// Save auto-save to gallery setting.
   Future<void> saveAutoSaveToGallery(bool enabled) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_autoSaveGalleryKey, enabled);
+    await _prefs.setBool(_autoSaveGalleryKey, enabled);
   }
 
   /// Load auto-save to gallery setting.
-  Future<bool> loadAutoSaveToGallery() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_autoSaveGalleryKey) ?? false;
+  bool loadAutoSaveToGallery() {
+    return _prefs.getBool(_autoSaveGalleryKey) ?? false;
   }
 
   /// Save haptic feedback setting.
   Future<void> saveHapticFeedback(bool enabled) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_hapticFeedbackKey, enabled);
+    await _prefs.setBool(_hapticFeedbackKey, enabled);
   }
 
   /// Load haptic feedback setting.
-  Future<bool> loadHapticFeedback() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_hapticFeedbackKey) ?? true;
+  bool loadHapticFeedback() {
+    return _prefs.getBool(_hapticFeedbackKey) ?? true;
   }
 
   /// Save the cloud provider setting.
   Future<void> saveCloudProvider(String? providerId) async {
-    final prefs = await SharedPreferences.getInstance();
     if (providerId == null) {
-      await prefs.remove(_cloudProviderKey);
+      await _prefs.remove(_cloudProviderKey);
     } else {
-      await prefs.setString(_cloudProviderKey, providerId);
+      await _prefs.setString(_cloudProviderKey, providerId);
     }
   }
 
   /// Load the cloud provider setting.
-  Future<String?> loadCloudProvider() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_cloudProviderKey);
+  String? loadCloudProvider() {
+    return _prefs.getString(_cloudProviderKey);
+  }
+
+  /// Check if cloud sync is enabled (provider is selected).
+  Future<bool> getCloudEnabled() async {
+    return loadCloudProvider() != null;
   }
 }

@@ -1,22 +1,23 @@
 import 'package:docscannerplus/models/folder_model.dart';
-import 'package:docscannerplus/repositories/document_repository.dart';
-import 'package:docscannerplus/repositories/folder_repository.dart';
+import 'package:docscannerplus/providers/document_provider.dart';
+import 'package:docscannerplus/providers/folder_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 
-class FoldersPage extends StatefulWidget {
+class FoldersPage extends ConsumerStatefulWidget {
   final Function(String? folderId, String? folderName)? onFolderSelected;
 
   const FoldersPage({super.key, this.onFolderSelected});
 
   @override
-  State<FoldersPage> createState() => _FoldersPageState();
+  ConsumerState<FoldersPage> createState() => _FoldersPageState();
 }
 
-class _FoldersPageState extends State<FoldersPage> {
-  final _folderRepository = FolderRepository();
-  final _documentRepository = DocumentRepository();
+class _FoldersPageState extends ConsumerState<FoldersPage> {
+  // _folderRepository is TODO: Migration to provider
+  // final _folderRepository = FolderRepository();
   List<FolderModel> _folders = [];
   Map<String?, int> _documentCounts = {};
   bool _isLoading = true;
@@ -28,8 +29,11 @@ class _FoldersPageState extends State<FoldersPage> {
   }
 
   Future<void> _loadData() async {
-    final folders = await _folderRepository.loadFolders();
-    final counts = await _documentRepository.getDocumentCountByFolder();
+    final folderRepository = ref.read(folderRepositoryProvider);
+    final folders = await folderRepository.loadFolders();
+    final counts = await ref
+        .read(documentRepositoryProvider)
+        .getDocumentCountByFolder();
     if (mounted) {
       setState(() {
         _folders = folders;
@@ -46,7 +50,7 @@ class _FoldersPageState extends State<FoldersPage> {
     );
 
     if (result != null) {
-      await _folderRepository.addFolder(result);
+      await ref.read(folderRepositoryProvider).addFolder(result);
       await _loadData();
     }
   }
@@ -58,7 +62,7 @@ class _FoldersPageState extends State<FoldersPage> {
     );
 
     if (result != null) {
-      await _folderRepository.updateFolder(result);
+      await ref.read(folderRepositoryProvider).updateFolder(result);
       await _loadData();
     }
   }
@@ -89,11 +93,12 @@ class _FoldersPageState extends State<FoldersPage> {
 
     if (confirmed == true) {
       // Move documents to uncategorized
-      final docs = await _documentRepository.loadDocumentsInFolder(folder.id);
+      final docRepo = ref.read(documentRepositoryProvider);
+      final docs = await docRepo.loadDocumentsInFolder(folder.id);
       for (final doc in docs) {
-        await _documentRepository.moveToFolder(doc, null);
+        await docRepo.moveToFolder(doc, null);
       }
-      await _folderRepository.deleteFolder(folder.id);
+      await ref.read(folderRepositoryProvider).deleteFolder(folder.id);
       await _loadData();
     }
   }

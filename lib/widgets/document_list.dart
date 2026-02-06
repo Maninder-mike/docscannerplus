@@ -20,12 +20,18 @@ class DocumentList extends ConsumerWidget {
     final documentsAsync = ref.watch(activeDocumentsProvider);
 
     return documentsAsync.when(
-      loading: () => const SliverFillRemaining(
-        child: Center(child: CircularProgressIndicator()),
-      ),
-      error: (err, stack) =>
-          SliverFillRemaining(child: Center(child: Text('Error: $err'))),
+      loading: () {
+        debugPrint('DocumentList: Loading...');
+        return const SliverFillRemaining(
+          child: Center(child: CircularProgressIndicator()),
+        );
+      },
+      error: (err, stack) {
+        debugPrint('DocumentList: Error: $err');
+        return SliverFillRemaining(child: Center(child: Text('Error: $err')));
+      },
       data: (allDocuments) {
+        debugPrint('DocumentList: Received ${allDocuments.length} documents');
         // 2. Filter by Folder
         final selectedFolderId = ref.watch(selectedFolderProvider);
         final documents = selectedFolderId == null

@@ -13,24 +13,18 @@ class DocumentRepository {
   static const String _migrationKey = 'isar_migrated_v1';
   static const int _trashRetentionDays = 30;
 
-  static Isar? _isar;
+  final Isar _isar;
+  final SharedPreferences _prefs;
 
-  Future<Isar> get _db async {
-    if (_isar != null) return _isar!;
+  DocumentRepository(this._isar, this._prefs);
 
-    final dir = await getApplicationDocumentsDirectory();
-    _isar = await Isar.open([DocumentModelSchema], directory: dir.path);
+  Future<Isar> get _db async => _isar;
 
-    await _performMigrationIfNeeded(_isar!);
-    return _isar!;
-  }
-
-  Future<void> _performMigrationIfNeeded(Isar isar) async {
-    final prefs = await SharedPreferences.getInstance();
-    final migrated = prefs.getBool(_migrationKey) ?? false;
+  Future<void> performMigrationIfNeeded() async {
+    final migrated = _prefs.getBool(_migrationKey) ?? false;
 
     if (!migrated) {
-      final jsonString = prefs.getString(_storageKey);
+      final jsonString = _prefs.getString(_storageKey);
       if (jsonString != null) {
         try {
           final List<dynamic> jsonList = jsonDecode(jsonString);
@@ -39,17 +33,17 @@ class DocumentRepository {
               .toList();
 
           if (docs.isNotEmpty) {
-            await isar.writeTxn(() async {
-              await isar.documentModels.putAll(docs);
+            await _isar.writeTxn(() async {
+              await _isar.documentModels.putAll(docs);
             });
           }
         } catch (e) {
           debugPrint('Migration error: $e');
         }
       }
-      await prefs.setBool(_migrationKey, true);
+      await _prefs.setBool(_migrationKey, true);
       // Optional: Clear old data
-      // await prefs.remove(_storageKey);
+      // await _prefs.remove(_storageKey);
     }
   }
 
@@ -69,13 +63,18 @@ class DocumentRepository {
   }
 
   /// Watch active documents (stream updates).
-  Stream<List<DocumentModel>> watchActiveDocuments() async* {
+  Stream<List<DocumentModel>> watchActiveDocuments({int? limit}) async* {
     final isar = await _db;
-    yield* isar.documentModels
+    var query = isar.documentModels
         .filter()
         .deletedAtIsNull()
-        .sortByCreatedAtDesc()
-        .watch(fireImmediately: true);
+        .sortByCreatedAtDesc();
+
+    if (limit != null) {
+      yield* query.limit(limit).watch(fireImmediately: true);
+    } else {
+      yield* query.watch(fireImmediately: true);
+    }
   }
 
   /// Load only documents in a specific folder.

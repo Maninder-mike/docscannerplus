@@ -1,115 +1,197 @@
 import 'dart:io';
+// import 'dart:convert'; // specific import not needed for crypto
+import 'package:crypto/crypto.dart';
 
 import 'package:docscannerplus/repositories/cloud_repository.dart';
 import 'package:docscannerplus/repositories/document_repository.dart';
+import 'package:docscannerplus/services/performance_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 
+import 'package:docscannerplus/services/analytics_service.dart';
+
 class SyncService {
-  final CloudRepository _cloudRepo;
-  final DocumentRepository _docRepo;
+  final CloudRepository cloudRepo;
+  final DocumentRepository docRepo;
+  final AnalyticsService? analyticsService;
 
-  SyncService({CloudRepository? cloudRepo, DocumentRepository? docRepo})
-    : _cloudRepo = cloudRepo ?? CloudRepository(),
-      _docRepo = docRepo ?? DocumentRepository();
+  SyncService({
+    required this.cloudRepo,
+    required this.docRepo,
+    this.analyticsService,
+  });
 
-  /// Perform a full sync (Upload missing to cloud, Download missing to local).
-  /// Returns count of [uploaded, downloaded].
+  /// Syncs documents between local storage and cloud.
+  /// Returns [uploadedCount, downloadedCount].
   Future<List<int>> sync() async {
-    // Ensure cloud is initialized/connected
-    if (_cloudRepo.activeService == null) {
-      await _cloudRepo.initialize();
-      if (_cloudRepo.activeService == null) {
-        debugPrint('SyncService: No active cloud provider.');
-        return [0, 0];
-      }
-    }
+    int uploadedCount = 0;
+    int downloadedCount = 0;
 
-    try {
-      int uploaded = 0;
-      int downloaded = 0;
+    await PerformanceService.traceSync(
+      (() async {
+            // Ensure cloud is initialized/connected
+            await cloudRepo.initialize();
+            if (cloudRepo.activeService == null) {
+              debugPrint('SyncService: No active cloud provider.');
+              return;
+            }
 
-      // 1. Fetch Lists
-      final cloudFiles = await _cloudRepo.listFiles(); // ID -> Name
-      final localDocs = await _docRepo.loadActiveDocuments();
+            try {
+              // 1. Fetch Lists
+              // TODO: Ideally listFiles should return complex metadata (ID, Name, Hash/ModTime)
+              // Current implementation only returns ID -> Name
+              final cloudFiles = await cloudRepo.listFiles(); // ID -> Name
+              final localDocs = await docRepo.loadActiveDocuments();
 
-      debugPrint(
-        'SyncService: Found ${cloudFiles.length} cloud files and ${localDocs.length} local docs.',
+              debugPrint(
+                'SyncService: Found ${cloudFiles.length} cloud files and ${localDocs.length} local docs.',
+              );
+
+              // 2. Upload missing or changed local files
+              for (final doc in localDocs) {
+                if (doc.filePath == null) continue;
+
+                final file = File(doc.filePath!);
+                if (!await file.exists()) continue;
+
+                // Calculate hash to check for changes
+                final currentHash = await _calculateFileHash(file);
+                final isChanged = doc.contentHash != currentHash;
+
+                // Check if already synced and unchanged
+                if (doc.cloudFileId != null && !isChanged) {
+                  // Verify if it still exists in cloud map
+                  if (cloudFiles.containsKey(doc.cloudFileId)) {
+                    debugPrint(
+                      'SyncService: Doc ${doc.title} unchanged and in cloud. Skipping.',
+                    );
+                    continue;
+                  }
+                }
+
+                final fileName = path.basename(doc.filePath!);
+
+                // Duplicate check by name (fallback if cloudFileId not set)
+                String? existingCloudId;
+                if (doc.cloudFileId == null) {
+                  // Find key by value (name) - inefficient but simple for now
+                  for (var entry in cloudFiles.entries) {
+                    if (entry.value == fileName) {
+                      existingCloudId = entry.key;
+                      break;
+                    }
+                  }
+                }
+
+                if (doc.cloudFileId == null &&
+                    existingCloudId != null &&
+                    !isChanged) {
+                  // It exists in cloud, we just lost the link. Link it back.
+                  debugPrint(
+                    'SyncService: Relinking ${doc.title} to cloud ID $existingCloudId',
+                  );
+                  await docRepo.updateDocument(
+                    doc.copyWith(
+                      cloudFileId: existingCloudId,
+                      contentHash: currentHash,
+                      lastSyncedAt: DateTime.now(),
+                    ),
+                  );
+                  continue;
+                }
+
+                // Upload if:
+                // 1. Not in cloud (no cloudFileId and not found by name)
+                // 2. Content changed (isChanged is true)
+                debugPrint(
+                  'SyncService: Uploading $fileName (Reason: ${isChanged ? 'Changed' : 'New'})...',
+                );
+
+                final cloudId = await cloudRepo.uploadFile(file, fileName);
+
+                if (cloudId != null) {
+                  await docRepo.updateDocument(
+                    doc.copyWith(
+                      cloudFileId: cloudId,
+                      contentHash: currentHash,
+                      lastSyncedAt: DateTime.now(),
+                    ),
+                  );
+                  uploadedCount++;
+                }
+              }
+
+              // 3. Download missing cloud files
+              final tmpDir = await getTemporaryDirectory();
+
+              for (final entry in cloudFiles.entries) {
+                final cloudId = entry.key;
+                final cloudName = entry.value;
+
+                if (!cloudName.toLowerCase().endsWith('.pdf')) continue;
+
+                // Check if we have it locally (by ID first, then name)
+                final alreadyHave = localDocs.any(
+                  (d) =>
+                      d.cloudFileId == cloudId ||
+                      (d.filePath != null &&
+                          path.basename(d.filePath!) == cloudName),
+                );
+
+                if (!alreadyHave) {
+                  debugPrint('SyncService: Downloading $cloudName...');
+                  final tmpPath = path.join(tmpDir.path, 'sync_tmp_$cloudName');
+                  final downloadedFile = await cloudRepo.downloadFile(
+                    cloudId,
+                    tmpPath,
+                  );
+
+                  if (downloadedFile != null) {
+                    await docRepo.importDownloadedDocument(
+                      downloadedFile,
+                      cloudName,
+                    );
+                    // Metadata update for the new doc
+                    // We need doc ID to update metadata immediately.
+                    // For now, next sync cycle will link it via name match.
+
+                    downloadedCount++;
+                  }
+                }
+              }
+
+              debugPrint(
+                'SyncService: Sync Complete. +$uploadedCount / +$downloadedCount',
+              );
+            } catch (e) {
+              debugPrint('SyncService: Error during sync: $e');
+              rethrow;
+            }
+          })
+          as Future<void> Function(),
+      uploadedCount: uploadedCount,
+      downloadedCount: downloadedCount,
+    );
+
+    if (analyticsService != null) {
+      await analyticsService!.logEvent(
+        name: 'sync_completed',
+        parameters: {
+          'uploaded_count': uploadedCount,
+          'downloaded_count': downloadedCount,
+          'provider': cloudRepo.activeService?.providerId ?? 'search_none',
+        },
       );
-
-      // 2. Upload missing local files
-      for (final doc in localDocs) {
-        debugPrint(
-          'SyncService: Checking doc ${doc.id} - filePath: ${doc.filePath}',
-        );
-
-        if (doc.filePath == null) {
-          debugPrint('SyncService: Skipping doc ${doc.id} - no filePath');
-          continue;
-        }
-
-        final file = File(doc.filePath!);
-        if (!await file.exists()) {
-          debugPrint(
-            'SyncService: Skipping doc ${doc.id} - file does not exist',
-          );
-          continue;
-        }
-
-        final fileName = path.basename(doc.filePath!);
-        debugPrint('SyncService: Doc filename: $fileName');
-
-        // Simple check: exists in cloud by name?
-        if (!cloudFiles.values.contains(fileName)) {
-          debugPrint('SyncService: Uploading $fileName...');
-          final result = await _cloudRepo.uploadFile(file, fileName);
-          debugPrint('SyncService: Upload result: $result');
-          uploaded++;
-        } else {
-          debugPrint('SyncService: $fileName already in cloud, skipping');
-        }
-      }
-
-      // 3. Download missing cloud files
-      // We assume any PDF in the app folder is a doc we want
-      final tmpDir = await getTemporaryDirectory();
-
-      for (final entry in cloudFiles.entries) {
-        final cloudId = entry.key;
-        final cloudName = entry.value;
-
-        // Skip non-pdf/zip if necessary, but assuming app folder contains only relevant stuff
-        if (!cloudName.toLowerCase().endsWith('.pdf')) continue;
-
-        // Check if we have it locally matching by filename
-        // This is a naive check. A better way would be storing cloud ID in DocumentModel.
-        // But for "Simple Backup", this suffices.
-        final existsLocally = localDocs.any((d) {
-          if (d.filePath == null) return false;
-          return path.basename(d.filePath!) == cloudName;
-        });
-
-        if (!existsLocally) {
-          debugPrint('SyncService: Downloading $cloudName...');
-          final tmpPath = path.join(tmpDir.path, 'sync_tmp_$cloudName');
-          final downloadedFile = await _cloudRepo.downloadFile(
-            cloudId,
-            tmpPath,
-          );
-
-          if (downloadedFile != null) {
-            await _docRepo.importDownloadedDocument(downloadedFile, cloudName);
-            downloaded++;
-          }
-        }
-      }
-
-      debugPrint('SyncService: Sync Complete. +$uploaded / +$downloaded');
-      return [uploaded, downloaded];
-    } catch (e) {
-      debugPrint('SyncService: Error during sync: $e');
-      rethrow;
     }
+
+    return [uploadedCount, downloadedCount];
+  }
+
+  Future<String> _calculateFileHash(File file) async {
+    // SHA256 is good for collision resistance
+    final stream = file.openRead();
+    final digest = await sha256.bind(stream).first;
+    return digest.toString();
   }
 }

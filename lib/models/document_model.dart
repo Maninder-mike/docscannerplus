@@ -30,6 +30,11 @@ class DocumentModel {
   final String? filterType;
   final List<String> tags;
 
+  // Cloud Sync support
+  final String? cloudFileId;
+  final DateTime? lastSyncedAt;
+  final String? contentHash; // To detect changes
+
   DocumentModel({
     required this.id,
     required this.title,
@@ -42,6 +47,9 @@ class DocumentModel {
     this.deletedAt,
     this.filterType,
     this.tags = const [],
+    this.cloudFileId,
+    this.lastSyncedAt,
+    this.contentHash,
   });
 
   /// Check if document is in trash.
@@ -72,6 +80,9 @@ class DocumentModel {
       folderId: folderId,
       filterType: filterType,
       tags: const [],
+      cloudFileId: null,
+      lastSyncedAt: null,
+      contentHash: null,
     );
   }
 
@@ -107,6 +118,11 @@ class DocumentModel {
           : null,
       filterType: json['filterType'] as String?,
       tags: json['tags'] != null ? List<String>.from(json['tags']) : const [],
+      cloudFileId: json['cloudFileId'] as String?,
+      lastSyncedAt: json['lastSyncedAt'] != null
+          ? DateTime.parse(json['lastSyncedAt'] as String)
+          : null,
+      contentHash: json['contentHash'] as String?,
     );
   }
 
@@ -122,6 +138,9 @@ class DocumentModel {
     List<String>? tags,
     bool clearDeletedAt = false,
     bool clearFolderId = false,
+    String? cloudFileId,
+    DateTime? lastSyncedAt,
+    String? contentHash,
   }) {
     return DocumentModel(
       id: id,
@@ -135,6 +154,9 @@ class DocumentModel {
       deletedAt: clearDeletedAt ? null : (deletedAt ?? this.deletedAt),
       filterType: filterType ?? this.filterType,
       tags: tags ?? this.tags,
+      cloudFileId: cloudFileId ?? this.cloudFileId,
+      lastSyncedAt: lastSyncedAt ?? this.lastSyncedAt,
+      contentHash: contentHash ?? this.contentHash,
     );
   }
 

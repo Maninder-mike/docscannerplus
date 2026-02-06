@@ -1,0 +1,36 @@
+name: Quality Gate
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality-check:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Use Reusable Workflow for Setup
+      - name: Setup Environment
+        uses: ./.github/workflows/reusable-setup.yml
+        with:
+          check-format: true
+
+      - name: Analyze Project
+        run: flutter analyze
+
+      - name: Run Tests
+        run: flutter test --coverage
+
+      - name: Verify Android Build
+        run: flutter build apk --debug --no-pub
+
+      - name: Verify Bundle Size (Dry Run)
+        run: flutter build appbundle --release --no-pub

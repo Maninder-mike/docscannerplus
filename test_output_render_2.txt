@@ -1,0 +1,82 @@
+00:00 +0: loading /Users/maninder/Developer/docscannerplus/test/settings_page_test.dart                                                                                                                00:01 +0: loading /Users/maninder/Developer/docscannerplus/test/settings_page_test.dart                                                                                                                00:01 +0: SettingsPage renders all sections                                                                                                                                                            00:02 +0: SettingsPage renders all sections                                                                                                                                                            00:02 +0: SettingsPage renders all sections                                                                                                                                                            
+Pending timers:
+Timer (duration: 0:00:00.300000, periodic: false), created:
+#0      new FakeTimer._ (package:fake_async/fake_async.dart:342:62)
+#1      FakeAsync._createTimer (package:fake_async/fake_async.dart:260:29)
+#2      FakeAsync.run.<anonymous closure> (package:fake_async/fake_async.dart:185:15)
+#6      _AnimateState._restart (package:flutter_animate/src/animate.dart:318:23)
+#7      _AnimateState.initState (package:flutter_animate/src/animate.dart:290:5)
+#8      StatefulElement._firstBuild (package:flutter/src/widgets/framework.dart:5953:55)
+#9      ComponentElement.mount (package:flutter/src/widgets/framework.dart:5796:5)
+...     Normal element mounting (41 frames)
+#50     Element.inflateWidget (package:flutter/src/widgets/framework.dart:4590:20)
+#51     Element.updateChild (package:flutter/src/widgets/framework.dart:4059:18)
+#52     SliverMultiBoxAdaptorElement.updateChild (package:flutter/src/widgets/sliver.dart:1068:37)
+#53     SliverMultiBoxAdaptorElement.createChild.<anonymous closure> (package:flutter/src/widgets/sliver.dart:1052:20)
+#54     BuildOwner.buildScope (package:flutter/src/widgets/framework.dart:3101:19)
+#55     SliverMultiBoxAdaptorElement.createChild (package:flutter/src/widgets/sliver.dart:1042:12)
+#56     RenderSliverMultiBoxAdaptor._createOrObtainChild.<anonymous closure> (package:flutter/src/rendering/sliver_multi_box_adaptor.dart:372:23)
+#57     RenderObject.invokeLayoutCallback.<anonymous closure> (package:flutter/src/rendering/object.dart:2894:17)
+#58     PipelineOwner._enableMutationsToDirtySubtrees (package:flutter/src/rendering/object.dart:1219:15)
+#59     RenderObject.invokeLayoutCallback (package:flutter/src/rendering/object.dart:2893:14)
+#60     RenderSliverMultiBoxAdaptor._createOrObtainChild (package:flutter/src/rendering/sliver_multi_box_adaptor.dart:360:5)
+#61     RenderSliverMultiBoxAdaptor.insertAndLayoutChild (package:flutter/src/rendering/sliver_multi_box_adaptor.dart:523:5)
+#62     RenderSliverList.performLayout.advance (package:flutter/src/rendering/sliver_list.dart:242:19)
+#63     RenderSliverList.performLayout (package:flutter/src/rendering/sliver_list.dart:283:12)
+#64     RenderObject.layout (package:flutter/src/rendering/object.dart:2775:7)
+#65     RenderViewportBase.layoutChildSequence (package:flutter/src/rendering/viewport.dart:673:13)
+#66     RenderViewport._attemptLayout (package:flutter/src/rendering/viewport.dart:1684:12)
+#67     RenderViewport.performLayout (package:flutter/src/rendering/viewport.dart:1575:20)
+#68     RenderObject._layoutWithoutResize (package:flutter/src/rendering/object.dart:2623:7)
+#69     PipelineOwner.flushLayout (package:flutter/src/rendering/object.dart:1170:18)
+#70     PipelineOwner.flushLayout (package:flutter/src/rendering/object.dart:1183:15)
+#71     AutomatedTestWidgetsFlutterBinding.drawFrame (package:flutter_test/src/binding.dart:1508:27)
+#72     RendererBinding._handlePersistentFrameCallback (package:flutter/src/rendering/binding.dart:495:5)
+#73     SchedulerBinding._invokeFrameCallback (package:flutter/src/scheduler/binding.dart:1434:15)
+#74     SchedulerBinding.handleDrawFrame (package:flutter/src/scheduler/binding.dart:1347:9)
+#75     AutomatedTestWidgetsFlutterBinding.pump.<anonymous closure> (package:flutter_test/src/binding.dart:1335:9)
+#78     TestAsyncUtils.guard (package:flutter_test/src/test_async_utils.dart:74:41)
+#79     AutomatedTestWidgetsFlutterBinding.pump (package:flutter_test/src/binding.dart:1324:27)
+#80     WidgetTester.pump.<anonymous closure> (package:flutter_test/src/widget_tester.dart:652:53)
+#83     TestAsyncUtils.guard (package:flutter_test/src/test_async_utils.dart:74:41)
+#84     WidgetTester.pump (package:flutter_test/src/widget_tester.dart:652:27)
+#85     WidgetController.dragUntilVisible.<anonymous closure> (package:flutter_test/src/controller.dart:2394:15)
+<asynchronous suspension>
+#86     TestAsyncUtils.guard.<anonymous closure> (package:flutter_test/src/test_async_utils.dart:130:27)
+<asynchronous suspension>
+#87     WidgetController.scrollUntilVisible.<anonymous closure> (package:flutter_test/src/controller.dart:2355:7)
+<asynchronous suspension>
+#88     TestAsyncUtils.guard.<anonymous closure> (package:flutter_test/src/test_async_utils.dart:130:27)
+<asynchronous suspension>
+#89     main.<anonymous closure> (file:///Users/maninder/Developer/docscannerplus/test/settings_page_test.dart:86:5)
+<asynchronous suspension>
+#90     testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#91     TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1059:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided 8 frames from dart:async and package:stack_trace)
+
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following assertion was thrown running a test:
+A Timer is still pending even after the widget tree was disposed.
+'package:flutter_test/src/binding.dart':
+Failed assertion: line 1617 pos 12: '!timersPending'
+
+When the exception was thrown, this was the stack:
+#2      AutomatedTestWidgetsFlutterBinding._verifyInvariants (package:flutter_test/src/binding.dart:1617:12)
+#3      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1078:7)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided 3 frames from class _AssertionError and package:stack_trace)
+
+The test description was:
+  SettingsPage renders all sections
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:02 +0 -1: SettingsPage renders all sections [E]                                                                                                                                                     
+  Test failed. See exception logs above.
+  The test description was: SettingsPage renders all sections
+  
+
+To run this test again: /opt/homebrew/Caskroom/flutter/3.32.5/flutter/bin/cache/dart-sdk/bin/dart test /Users/maninder/Developer/docscannerplus/test/settings_page_test.dart -p vm --plain-name 'SettingsPage renders all sections'
+00:02 +0 -1: Some tests failed.                                                                                                                                                                        

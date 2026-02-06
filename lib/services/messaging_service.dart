@@ -6,7 +6,7 @@ class MessagingService {
   factory MessagingService() => instance;
   MessagingService._internal();
 
-  final FirebaseMessaging _fcm = FirebaseMessaging.instance;
+  late final FirebaseMessaging _fcm = FirebaseMessaging.instance;
   String? fcmToken;
 
   Future<void> initialize() async {

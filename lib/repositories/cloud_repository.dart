@@ -15,12 +15,13 @@ class CloudRepository {
     'onedrive': OneDriveService(),
   };
 
-  CloudRepository({SettingsRepository? settingsRepo})
-    : _settingsRepo = settingsRepo ?? SettingsRepository();
+  CloudRepository(this._settingsRepo);
+
+  Future<bool> get isEnabled async => await _settingsRepo.getCloudEnabled();
 
   /// Initialize and load the saved provider
   Future<void> initialize() async {
-    final providerId = await _settingsRepo.loadCloudProvider();
+    final providerId = _settingsRepo.loadCloudProvider();
     if (providerId != null && _services.containsKey(providerId)) {
       _activeService = _services[providerId];
       // Try to silently sign in

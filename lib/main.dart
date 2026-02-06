@@ -18,6 +18,14 @@ import 'package:docscannerplus/services/messaging_service.dart';
 import 'package:docscannerplus/services/local_notification_service.dart';
 import 'package:docscannerplus/providers/settings_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:isar_community/isar.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:docscannerplus/models/document_model.dart'; // For DocumentModelSchema
+import 'package:docscannerplus/providers/core_providers.dart';
+import 'package:docscannerplus/services/performance_service.dart';
+import 'package:docscannerplus/widgets/error_boundary.dart';
 
 /// Global navigator key for OAuth flows (e.g., OneDrive)
 final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
@@ -61,7 +69,43 @@ Future<void> main() async {
     debugPrint("Local notification init failed: $e");
   }
 
-  runApp(const ProviderScope(child: MyApp()));
+  // Initialize Core Services
+  late final SharedPreferences sharedPreferences;
+  late final PackageInfo packageInfo;
+  late final Isar isar;
+
+  try {
+    sharedPreferences = await SharedPreferences.getInstance();
+    packageInfo = await PackageInfo.fromPlatform();
+
+    final dir = await getApplicationDocumentsDirectory();
+    isar = await Isar.open([DocumentModelSchema], directory: dir.path);
+
+    // Perform migration if needed (now handled via repository logic, but ISAR needs to be open)
+    // We can instantiate a temporary DocumentRepository to run migration if strictly needed here,
+    // or let it lazily happen when the provider is first read.
+    // For now, let's keep it simple and just open ISAR.
+  } catch (e) {
+    debugPrint("Core services initialization failed: $e");
+    // In a real app we might want to show a fatal error screen here
+    rethrow;
+  }
+
+  // Set up global error widget
+  ErrorWidget.builder = (FlutterErrorDetails details) {
+    return GlobalErrorPage(details: details);
+  };
+
+  runApp(
+    ProviderScope(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(sharedPreferences),
+        packageInfoProvider.overrideWithValue(packageInfo),
+        isarProvider.overrideWithValue(isar),
+      ],
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends ConsumerStatefulWidget {
@@ -107,21 +151,23 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
   }
 
   Future<void> _initialize() async {
-    // Theme is loaded by Riverpod provider automatically.
+    await PerformanceService.traceAppStart(() async {
+      // Theme is loaded by Riverpod provider automatically.
 
-    // Check onboarding
-    final onboardingCompleted = await OnboardingPage.isCompleted();
+      // Check onboarding
+      final onboardingCompleted = await OnboardingPage.isCompleted();
 
-    // Check if app lock is enabled
-    final lockEnabled = await _securityRepository.isAppLockEnabled();
+      // Check if app lock is enabled
+      final lockEnabled = await _securityRepository.isAppLockEnabled();
 
-    if (mounted) {
-      setState(() {
-        _showOnboarding = !onboardingCompleted;
-        _isLocked = lockEnabled && onboardingCompleted;
-        _isLoading = false;
-      });
-    }
+      if (mounted) {
+        setState(() {
+          _showOnboarding = !onboardingCompleted;
+          _isLocked = lockEnabled && onboardingCompleted;
+          _isLoading = false;
+        });
+      }
+    });
   }
 
   Future<void> _checkLockOnResume() async {
@@ -141,7 +187,7 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    final themeMode = ref.watch(themeModeProvider);
+    final themeMode = ref.watch(themeSettingProvider);
 
     // Firebase Analytics Observer
     final analyticsObserver = FirebaseAnalyticsObserver(

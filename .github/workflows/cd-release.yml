@@ -1,0 +1,65 @@
+name: Production Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & Deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract Version
+        id: version
+        run: |
+          VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: //;s/\+.*//')
+          echo "version=v$VERSION" >> $GITHUB_OUTPUT
+
+      # Use Reusable Workflow for Setup
+      - name: Setup Environment
+        uses: ./.github/workflows/reusable-setup.yml
+
+      # Securely Decode Secrets
+      - name: Prepare Signing Keys
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEY_PROPERTIES: ${{ secrets.ANDROID_KEY_PROPERTIES }}
+          PLAY_STORE_KEY: ${{ secrets.PLAY_STORE_KEY }} # or GOOGLE_PLAY_JSON
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
+          echo "$KEY_PROPERTIES" > android/key.properties
+          echo "$PLAY_STORE_KEY" | base64 --decode > android/fastlane/play-store-key.json
+
+      - name: Build App Bundle
+        run: flutter build appbundle --release --no-pub --dart-define=ONEDRIVE_CLIENT_ID=${{ secrets.ONEDRIVE_CLIENT_ID }}
+
+      - name: Setup Fastlane
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: true
+          working-directory: android
+
+      - name: Deploy to Play Store
+        working-directory: android
+        env:
+          Supply_JSON_KEY: fastlane/play-store-key.json
+        run: bundle exec fastlane deploy_internal
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: build/app/outputs/bundle/release/app-release.aab
+          generate_release_notes: true
+          draft: false
+          prerelease: false
