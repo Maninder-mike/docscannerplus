@@ -112,17 +112,21 @@ jobs:
             echo "Debug symbols generated at build/debug-info"
           fi
 
-      # Ruby + Fastlane with Bundler cache
+      # Ruby + Fastlane
+      # Note: We disable bundler-cache because we need to update the lockfile dynamically
+      # due to the local ruby version being too old to generate it.
       - name: Setup Fastlane
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.2'
-          bundler-cache: true
           working-directory: android
 
-      - name: Update Secure Dependencies
+      - name: Install & Update Dependencies
         working-directory: android
-        run: bundle update aws-sdk-s3
+        run: |
+          bundle config set frozen false
+          bundle install
+          bundle update aws-sdk-s3
 
       # Deploy to Play Store
       - name: Deploy to Play Store
