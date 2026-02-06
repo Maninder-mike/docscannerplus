@@ -138,6 +138,7 @@ class DocumentModel {
     List<String>? tags,
     bool clearDeletedAt = false,
     bool clearFolderId = false,
+    bool clearCloudFileId = false,
     String? cloudFileId,
     DateTime? lastSyncedAt,
     String? contentHash,
@@ -154,7 +155,7 @@ class DocumentModel {
       deletedAt: clearDeletedAt ? null : (deletedAt ?? this.deletedAt),
       filterType: filterType ?? this.filterType,
       tags: tags ?? this.tags,
-      cloudFileId: cloudFileId ?? this.cloudFileId,
+      cloudFileId: clearCloudFileId ? null : (cloudFileId ?? this.cloudFileId),
       lastSyncedAt: lastSyncedAt ?? this.lastSyncedAt,
       contentHash: contentHash ?? this.contentHash,
     );

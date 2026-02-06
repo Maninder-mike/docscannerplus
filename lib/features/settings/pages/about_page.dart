@@ -126,6 +126,7 @@ class _AboutPageState extends State<AboutPage> {
                 leading: const Icon(Icons.bug_report_outlined),
                 title: 'Copy Debug Info',
                 onTap: () async {
+                  final messenger = ScaffoldMessenger.of(context);
                   final token =
                       MessagingService.instance.fcmToken ?? 'Not available';
                   await Clipboard.setData(
@@ -133,13 +134,11 @@ class _AboutPageState extends State<AboutPage> {
                       text: 'Version: $_appVersion\nFCM Token: $token',
                     ),
                   );
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Debug info copied to clipboard'),
-                      ),
-                    );
-                  }
+                  messenger.showSnackBar(
+                    const SnackBar(
+                      content: Text('Debug info copied to clipboard'),
+                    ),
+                  );
                 },
               ),
               // Only show in debug/profile mode basically, but safe to leave for now as it was there before

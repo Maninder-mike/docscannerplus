@@ -138,4 +138,72 @@ void main() {
       'cloud doc',
     ); // "cloud_doc" -> "cloud doc" (name sanitization)
   });
+
+  test('sync should delete from cloud when locally trashed', () async {
+    // 1. Create a local document that was already synced to cloud
+    final testFile = File(path.join(appDocDir.path, 'trashed_doc.pdf'));
+    await testFile.writeAsString('test content');
+
+    final doc =
+        DocumentModel.create(
+          title: 'Trashed Doc',
+          filePath: testFile.path,
+        ).copyWith(
+          cloudFileId: 'cloud_id_to_delete',
+          lastSyncedAt: DateTime.now().subtract(const Duration(days: 1)),
+        );
+    // Move to trash (simulates user deleting locally)
+    await docRepo.saveNewDocument(doc.moveToTrash());
+
+    // 2. Mock cloud state - empty to avoid download attempts
+    // The trashed doc won't try to download since it's already trashed
+    when(mockCloudRepo.listFiles()).thenAnswer((_) async => {});
+    when(mockCloudRepo.deleteFile(any)).thenAnswer((_) async {});
+
+    // 3. Run Sync
+    await syncService.sync();
+
+    // 4. Assert deleteFile was called
+    verify(mockCloudRepo.deleteFile('cloud_id_to_delete')).called(1);
+
+    // Verify cloudFileId is cleared after deletion
+    final trashedDocs = await docRepo.loadTrashedDocuments();
+    expect(trashedDocs.first.cloudFileId, isNull);
+  });
+
+  test('sync should move to trash when deleted from cloud', () async {
+    // 1. Create a local document that was synced to cloud
+    final testFile = File(path.join(appDocDir.path, 'remote_deleted.pdf'));
+    await testFile.writeAsString('test content');
+
+    final doc =
+        DocumentModel.create(
+          title: 'Remote Deleted Doc',
+          filePath: testFile.path,
+        ).copyWith(
+          cloudFileId: 'cloud_id_gone',
+          lastSyncedAt: DateTime.now().subtract(const Duration(days: 1)),
+        );
+    await docRepo.saveNewDocument(doc);
+
+    // 2. Mock cloud state: file is NOT in cloud (was deleted remotely)
+    // But the file still exists locally and will try to upload since cloudFileId not in cloud
+    // Actually, since file has cloudFileId but NOT in cloud -> sync detects remote deletion
+    when(mockCloudRepo.listFiles()).thenAnswer((_) async => {});
+    // Need to stub uploadFile since sync tries to upload local files first
+    when(
+      mockCloudRepo.uploadFile(any, any),
+    ).thenAnswer((_) async => 'new_cloud_id');
+
+    // 3. Run Sync
+    await syncService.sync();
+
+    // 4. Assert document was moved to trash
+    final activeDocs = await docRepo.loadActiveDocuments();
+    expect(activeDocs.length, 0);
+
+    final trashedDocs = await docRepo.loadTrashedDocuments();
+    expect(trashedDocs.length, 1);
+    expect(trashedDocs.first.title, 'Remote Deleted Doc');
+  });
 }

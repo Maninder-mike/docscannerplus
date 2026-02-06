@@ -45,14 +45,27 @@ class HomeAppBar extends ConsumerWidget {
 
     return SliverMainAxisGroup(
       slivers: [
-        SliverAppBar.medium(
+        SliverAppBar(
+          pinned: true,
           title: Text(
-            isSelectionMode ? '$selectedCount selected' : 'DocScanner+',
+            isSelectionMode
+                ? '$selectedCount selected'
+                : selectedFolderId != null
+                ? (selectedFolderName ?? 'Folder')
+                : 'DocScanner+',
           ),
           leading: isSelectionMode
               ? IconButton(
                   icon: const Icon(Icons.close),
                   onPressed: onClearSelection,
+                )
+              : selectedFolderId != null
+              ? IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: () {
+                    ref.read(selectedFolderProvider.notifier).select(null);
+                    ref.read(selectedFolderNameProvider.notifier).set(null);
+                  },
                 )
               : IconButton(
                   icon: const Icon(Icons.menu),
@@ -118,35 +131,6 @@ class HomeAppBar extends ConsumerWidget {
           )
         else ...[
           const AnnouncementBanner(),
-          if (selectedFolderId != null)
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                child: Row(
-                  children: [
-                    InputChip(
-                      label: Text(selectedFolderName ?? 'Folder'),
-                      avatar: const Icon(Icons.folder_outlined, size: 18),
-                      deleteIcon: const Icon(Icons.close, size: 18),
-                      onDeleted: () {
-                        ref.read(selectedFolderProvider.notifier).select(null);
-                        ref.read(selectedFolderNameProvider.notifier).set(null);
-                      },
-                      selected: true,
-                      showCheckmark: false,
-                      selectedColor: Theme.of(
-                        context,
-                      ).colorScheme.secondaryContainer,
-                      labelStyle: TextStyle(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.onSecondaryContainer,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
         ],
       ],
     );

@@ -40,7 +40,9 @@ class SettingsGroup extends StatelessWidget {
                   Divider(
                     height: 1,
                     indent: 56,
-                    color: theme.colorScheme.outlineVariant.withOpacity(0.5),
+                    color: theme.colorScheme.outlineVariant.withValues(
+                      alpha: 0.5,
+                    ),
                   ),
               ],
             ],

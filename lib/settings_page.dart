@@ -83,7 +83,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final themeMode = ref.watch(themeSettingProvider);
 
     // If searching, we flatten the list or just show matching tiles
@@ -92,24 +91,46 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     return Scaffold(
       body: CustomScrollView(
         slivers: [
-          SliverAppBar.large(
-            title: const Text('Settings'),
-            centerTitle: false, // iOS style
-          ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: SearchBar(
-                controller: _searchController,
-                hintText: 'Search settings',
-                leading: const Icon(Icons.search),
-                onChanged: _onSearchChanged,
-                elevation: WidgetStateProperty.all(0),
-                backgroundColor: WidgetStateProperty.all(
-                  theme.colorScheme.surfaceContainerHighest,
+          SliverAppBar(
+            title: _searchQuery.isEmpty
+                ? const Text('Settings')
+                : TextField(
+                    controller: _searchController,
+                    autofocus: true,
+                    decoration: const InputDecoration(
+                      hintText: 'Search settings...',
+                      border: InputBorder.none,
+                    ),
+                    onChanged: _onSearchChanged,
+                  ),
+            pinned: true,
+            floating: true,
+            actions: [
+              if (_searchQuery.isEmpty)
+                IconButton(
+                  icon: const Icon(Icons.search),
+                  onPressed: () {
+                    setState(() {
+                      _searchQuery = ' '; // Trigger search mode
+                      _searchController.clear();
+                    });
+                    // Reset after build to show empty results
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      setState(() => _searchQuery = '');
+                    });
+                  },
+                )
+              else
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () {
+                    setState(() {
+                      _searchQuery = '';
+                      _searchController.clear();
+                    });
+                  },
                 ),
-              ),
-            ),
+            ],
           ),
           SliverList(
             delegate: SliverChildListDelegate(

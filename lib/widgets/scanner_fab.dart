@@ -9,6 +9,7 @@ import 'package:docscannerplus/document_scanner_service.dart';
 import 'package:docscannerplus/services/image_filter_service.dart';
 import 'package:docscannerplus/services/performance_service.dart';
 import 'package:docscannerplus/providers/core_providers.dart';
+import 'package:docscannerplus/providers/sync_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -90,6 +91,7 @@ class ScannerFab extends ConsumerWidget {
             );
             await ref.read(documentRepositoryProvider).saveNewDocument(newDoc);
             debugPrint('ScannerFab: Document saved successfully');
+            ref.read(syncControllerProvider.notifier).scheduleSync();
 
             // Auto-save to Files if enabled
             try {

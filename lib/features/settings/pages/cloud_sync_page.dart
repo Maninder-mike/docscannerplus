@@ -1,9 +1,7 @@
 import 'package:docscannerplus/features/settings/widgets/settings_group.dart';
 import 'package:docscannerplus/features/settings/widgets/settings_tile.dart';
 import 'package:docscannerplus/providers/cloud_provider.dart';
-import 'package:docscannerplus/providers/core_providers.dart';
-import 'package:docscannerplus/providers/document_provider.dart';
-import 'package:docscannerplus/services/sync_service.dart';
+import 'package:docscannerplus/providers/sync_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
@@ -69,12 +67,9 @@ class _CloudSyncPageState extends ConsumerState<CloudSyncPage> {
 
     setState(() => _isSyncing = true);
     try {
-      final syncService = SyncService(
-        cloudRepo: ref.read(cloudRepositoryProvider),
-        docRepo: ref.read(documentRepositoryProvider),
-        analyticsService: ref.read(analyticsServiceProvider),
-      );
-      final result = await syncService.sync();
+      final result = await ref
+          .read(syncControllerProvider.notifier)
+          .performSync();
 
       if (mounted) {
         final uploaded = result[0];
@@ -180,7 +175,7 @@ class _CloudSyncPageState extends ConsumerState<CloudSyncPage> {
       leading: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
+          color: color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Icon(icon, color: color, size: 24),

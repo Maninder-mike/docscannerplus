@@ -10,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 
 import 'package:docscannerplus/services/analytics_service.dart';
+import 'package:docscannerplus/models/document_model.dart';
 
 class SyncService {
   final CloudRepository cloudRepo;
@@ -49,121 +50,20 @@ class SyncService {
               );
 
               // 2. Upload missing or changed local files
-              for (final doc in localDocs) {
-                if (doc.filePath == null) continue;
-
-                final file = File(doc.filePath!);
-                if (!await file.exists()) continue;
-
-                // Calculate hash to check for changes
-                final currentHash = await _calculateFileHash(file);
-                final isChanged = doc.contentHash != currentHash;
-
-                // Check if already synced and unchanged
-                if (doc.cloudFileId != null && !isChanged) {
-                  // Verify if it still exists in cloud map
-                  if (cloudFiles.containsKey(doc.cloudFileId)) {
-                    debugPrint(
-                      'SyncService: Doc ${doc.title} unchanged and in cloud. Skipping.',
-                    );
-                    continue;
-                  }
-                }
-
-                final fileName = path.basename(doc.filePath!);
-
-                // Duplicate check by name (fallback if cloudFileId not set)
-                String? existingCloudId;
-                if (doc.cloudFileId == null) {
-                  // Find key by value (name) - inefficient but simple for now
-                  for (var entry in cloudFiles.entries) {
-                    if (entry.value == fileName) {
-                      existingCloudId = entry.key;
-                      break;
-                    }
-                  }
-                }
-
-                if (doc.cloudFileId == null &&
-                    existingCloudId != null &&
-                    !isChanged) {
-                  // It exists in cloud, we just lost the link. Link it back.
-                  debugPrint(
-                    'SyncService: Relinking ${doc.title} to cloud ID $existingCloudId',
-                  );
-                  await docRepo.updateDocument(
-                    doc.copyWith(
-                      cloudFileId: existingCloudId,
-                      contentHash: currentHash,
-                      lastSyncedAt: DateTime.now(),
-                    ),
-                  );
-                  continue;
-                }
-
-                // Upload if:
-                // 1. Not in cloud (no cloudFileId and not found by name)
-                // 2. Content changed (isChanged is true)
-                debugPrint(
-                  'SyncService: Uploading $fileName (Reason: ${isChanged ? 'Changed' : 'New'})...',
-                );
-
-                final cloudId = await cloudRepo.uploadFile(file, fileName);
-
-                if (cloudId != null) {
-                  await docRepo.updateDocument(
-                    doc.copyWith(
-                      cloudFileId: cloudId,
-                      contentHash: currentHash,
-                      lastSyncedAt: DateTime.now(),
-                    ),
-                  );
-                  uploadedCount++;
-                }
-              }
+              uploadedCount = await _processUploads(localDocs, cloudFiles);
 
               // 3. Download missing cloud files
-              final tmpDir = await getTemporaryDirectory();
-
-              for (final entry in cloudFiles.entries) {
-                final cloudId = entry.key;
-                final cloudName = entry.value;
-
-                if (!cloudName.toLowerCase().endsWith('.pdf')) continue;
-
-                // Check if we have it locally (by ID first, then name)
-                final alreadyHave = localDocs.any(
-                  (d) =>
-                      d.cloudFileId == cloudId ||
-                      (d.filePath != null &&
-                          path.basename(d.filePath!) == cloudName),
-                );
-
-                if (!alreadyHave) {
-                  debugPrint('SyncService: Downloading $cloudName...');
-                  final tmpPath = path.join(tmpDir.path, 'sync_tmp_$cloudName');
-                  final downloadedFile = await cloudRepo.downloadFile(
-                    cloudId,
-                    tmpPath,
-                  );
-
-                  if (downloadedFile != null) {
-                    await docRepo.importDownloadedDocument(
-                      downloadedFile,
-                      cloudName,
-                    );
-                    // Metadata update for the new doc
-                    // We need doc ID to update metadata immediately.
-                    // For now, next sync cycle will link it via name match.
-
-                    downloadedCount++;
-                  }
-                }
-              }
+              downloadedCount = await _processDownloads(cloudFiles, localDocs);
 
               debugPrint(
                 'SyncService: Sync Complete. +$uploadedCount / +$downloadedCount',
               );
+
+              // 4. Delete from cloud for locally trashed documents
+              await _processLocalDeletions();
+
+              // 5. Handle cloud-side deletions (files deleted remotely)
+              await _processRemoteDeletions(localDocs, cloudFiles);
             } catch (e) {
               debugPrint('SyncService: Error during sync: $e');
               rethrow;
@@ -186,6 +86,158 @@ class SyncService {
     }
 
     return [uploadedCount, downloadedCount];
+  }
+
+  Future<int> _processUploads(
+    List<DocumentModel> localDocs,
+    Map<String, String> cloudFiles,
+  ) async {
+    int count = 0;
+    for (final doc in localDocs) {
+      if (doc.filePath == null) continue;
+
+      final file = File(doc.filePath!);
+      if (!await file.exists()) continue;
+
+      // Calculate hash to check for changes
+      final currentHash = await _calculateFileHash(file);
+      final isChanged = doc.contentHash != currentHash;
+
+      // Check if already synced and unchanged
+      if (doc.cloudFileId != null && !isChanged) {
+        // Verify if it still exists in cloud map
+        if (cloudFiles.containsKey(doc.cloudFileId)) {
+          debugPrint(
+            'SyncService: Doc ${doc.title} unchanged and in cloud. Skipping.',
+          );
+          continue;
+        } else {
+          // cloudFileId exists but not in cloud - file was deleted remotely
+          // Skip uploading and let step 5 handle moving to trash
+          debugPrint(
+            'SyncService: Doc ${doc.title} was deleted from cloud. Skipping upload.',
+          );
+          continue;
+        }
+      }
+
+      final fileName = path.basename(doc.filePath!);
+
+      // Duplicate check by name (fallback if cloudFileId not set)
+      String? existingCloudId;
+      if (doc.cloudFileId == null) {
+        // Find key by value (name) - inefficient but simple for now
+        for (var entry in cloudFiles.entries) {
+          if (entry.value == fileName) {
+            existingCloudId = entry.key;
+            break;
+          }
+        }
+      }
+
+      if (doc.cloudFileId == null && existingCloudId != null && !isChanged) {
+        // It exists in cloud, we just lost the link. Link it back.
+        debugPrint(
+          'SyncService: Relinking ${doc.title} to cloud ID $existingCloudId',
+        );
+        await docRepo.updateDocument(
+          doc.copyWith(
+            cloudFileId: existingCloudId,
+            contentHash: currentHash,
+            lastSyncedAt: DateTime.now(),
+          ),
+        );
+        continue;
+      }
+
+      // Upload if:
+      // 1. Not in cloud (no cloudFileId and not found by name)
+      // 2. Content changed (isChanged is true)
+      debugPrint(
+        'SyncService: Uploading $fileName (Reason: ${isChanged ? 'Changed' : 'New'})...',
+      );
+
+      final cloudId = await cloudRepo.uploadFile(file, fileName);
+
+      if (cloudId != null) {
+        await docRepo.updateDocument(
+          doc.copyWith(
+            cloudFileId: cloudId,
+            contentHash: currentHash,
+            lastSyncedAt: DateTime.now(),
+          ),
+        );
+        count++;
+      }
+    }
+    return count;
+  }
+
+  Future<int> _processDownloads(
+    Map<String, String> cloudFiles,
+    List<DocumentModel> localDocs,
+  ) async {
+    int count = 0;
+    final tmpDir = await getTemporaryDirectory();
+
+    for (final entry in cloudFiles.entries) {
+      final cloudId = entry.key;
+      final cloudName = entry.value;
+
+      if (!cloudName.toLowerCase().endsWith('.pdf')) continue;
+
+      // Check if we have it locally (by ID first, then name)
+      final alreadyHave = localDocs.any(
+        (d) =>
+            d.cloudFileId == cloudId ||
+            (d.filePath != null && path.basename(d.filePath!) == cloudName),
+      );
+
+      if (!alreadyHave) {
+        debugPrint('SyncService: Downloading $cloudName...');
+        final tmpPath = path.join(tmpDir.path, 'sync_tmp_$cloudName');
+        final downloadedFile = await cloudRepo.downloadFile(cloudId, tmpPath);
+
+        if (downloadedFile != null) {
+          await docRepo.importDownloadedDocument(downloadedFile, cloudName);
+          // Metadata update for the new doc
+          // We need doc ID to update metadata immediately.
+          // For now, next sync cycle will link it via name match.
+
+          count++;
+        }
+      }
+    }
+    return count;
+  }
+
+  Future<void> _processLocalDeletions() async {
+    final trashedDocs = await docRepo.loadTrashedDocuments();
+    for (final doc in trashedDocs) {
+      if (doc.cloudFileId != null) {
+        debugPrint('SyncService: Deleting ${doc.title} from cloud...');
+        await cloudRepo.deleteFile(doc.cloudFileId!);
+        // Clear cloud reference after deletion
+        await docRepo.updateDocument(
+          doc.copyWith(clearCloudFileId: true, lastSyncedAt: DateTime.now()),
+        );
+      }
+    }
+  }
+
+  Future<void> _processRemoteDeletions(
+    List<DocumentModel> localDocs,
+    Map<String, String> cloudFiles,
+  ) async {
+    for (final doc in localDocs) {
+      if (doc.cloudFileId != null && !cloudFiles.containsKey(doc.cloudFileId)) {
+        // File was in cloud but now it's gone - deleted remotely
+        debugPrint(
+          'SyncService: ${doc.title} deleted from cloud, moving to trash...',
+        );
+        await docRepo.moveToTrash(doc);
+      }
+    }
   }
 
   Future<String> _calculateFileHash(File file) async {

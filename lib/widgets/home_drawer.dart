@@ -28,7 +28,7 @@ class _HomeDrawerState extends ConsumerState<HomeDrawer> {
       final info = await PackageInfo.fromPlatform();
       if (mounted) {
         setState(() {
-          _appVersion = 'v${info.version} (${info.buildNumber})';
+          _appVersion = info.version;
         });
       }
     } catch (_) {
@@ -75,155 +75,132 @@ class _HomeDrawerState extends ConsumerState<HomeDrawer> {
     final colorScheme = Theme.of(context).colorScheme;
     final selectedFolder = ref.watch(selectedFolderProvider);
 
-    return Drawer(
-      child: Column(
-        children: [
-          // Premium Header with Gradient
-          Container(
-            width: double.infinity,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [colorScheme.primary, colorScheme.primaryContainer],
+    return RepaintBoundary(
+      child: Drawer(
+        child: Column(
+          children: [
+            // Premium Header with Gradient
+            Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [colorScheme.primary, colorScheme.primaryContainer],
+                ),
               ),
-            ),
-            child: SafeArea(
-              bottom: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // App Icon
-                    Container(
-                      width: 64,
-                      height: 64,
-                      decoration: BoxDecoration(
-                        color: colorScheme.onPrimary.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: colorScheme.onPrimary.withValues(alpha: 0.3),
-                          width: 2,
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'DocScanner+',
+                        style: Theme.of(context).textTheme.headlineSmall
+                            ?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.onPrimary,
+                            ),
+                      ),
+                      const Gap(4),
+                      Text(
+                        'Scan • Organize • Sync',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onPrimary.withValues(alpha: 0.8),
                         ),
                       ),
-                      child: Icon(
-                        Icons.document_scanner_rounded,
-                        color: colorScheme.onPrimary,
-                        size: 32,
-                      ),
-                    ),
-                    const Gap(16),
-                    Text(
-                      'DocScanner+',
-                      style: Theme.of(context).textTheme.headlineSmall
-                          ?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: colorScheme.onPrimary,
-                          ),
-                    ),
-                    const Gap(4),
-                    Text(
-                      'Scan • Organize • Sync',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onPrimary.withValues(alpha: 0.8),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          // Navigation Items
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              children: [
-                _buildNavItem(
-                  context: context,
-                  icon: Icons.description_outlined,
-                  selectedIcon: Icons.description,
-                  label: 'All Documents',
-                  isSelected: selectedFolder == null,
-                  onTap: () {
-                    Navigator.pop(context);
-                    if (selectedFolder != null) _resetSelection();
-                  },
-                  colorScheme: colorScheme,
-                ),
-                _buildNavItem(
-                  context: context,
-                  icon: Icons.folder_outlined,
-                  selectedIcon: Icons.folder,
-                  label: 'Folders',
-                  isSelected: selectedFolder != null,
-                  onTap: () {
-                    Navigator.pop(context);
-                    _openFolders(context);
-                  },
-                  colorScheme: colorScheme,
-                ),
-                _buildNavItem(
-                  context: context,
-                  icon: Icons.delete_outline,
-                  selectedIcon: Icons.delete,
-                  label: 'Trash',
-                  isSelected: false,
-                  onTap: () {
-                    Navigator.pop(context);
-                    _openTrash(context);
-                  },
-                  colorScheme: colorScheme,
-                ),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Divider(),
-                ),
-                _buildNavItem(
-                  context: context,
-                  icon: Icons.settings_outlined,
-                  selectedIcon: Icons.settings,
-                  label: 'Settings',
-                  isSelected: false,
-                  onTap: () {
-                    Navigator.pop(context);
-                    _openSettings(context);
-                  },
-                  colorScheme: colorScheme,
-                ),
-              ],
-            ),
-          ),
-
-          // Footer
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              border: Border(
-                top: BorderSide(
-                  color: colorScheme.outlineVariant.withValues(alpha: 0.5),
-                ),
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.info_outline,
-                  size: 16,
-                  color: colorScheme.onSurfaceVariant,
-                ),
-                const Gap(8),
-                Text(
-                  _appVersion.isNotEmpty ? _appVersion : 'DocScanner+',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
+                    ],
                   ),
                 ),
-              ],
+              ),
             ),
-          ),
-        ],
+
+            // Navigation Items
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                children: [
+                  _buildNavItem(
+                    context: context,
+                    icon: Icons.description_outlined,
+                    selectedIcon: Icons.description,
+                    label: 'All Documents',
+                    isSelected: selectedFolder == null,
+                    onTap: () {
+                      Navigator.pop(context);
+                      if (selectedFolder != null) _resetSelection();
+                    },
+                    colorScheme: colorScheme,
+                  ),
+                  _buildNavItem(
+                    context: context,
+                    icon: Icons.folder_outlined,
+                    selectedIcon: Icons.folder,
+                    label: 'Folders',
+                    isSelected: selectedFolder != null,
+                    onTap: () {
+                      Navigator.pop(context);
+                      _openFolders(context);
+                    },
+                    colorScheme: colorScheme,
+                  ),
+                  _buildNavItem(
+                    context: context,
+                    icon: Icons.delete_outline,
+                    selectedIcon: Icons.delete,
+                    label: 'Trash',
+                    isSelected: false,
+                    onTap: () {
+                      Navigator.pop(context);
+                      _openTrash(context);
+                    },
+                    colorScheme: colorScheme,
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Divider(),
+                  ),
+                  _buildNavItem(
+                    context: context,
+                    icon: Icons.settings_outlined,
+                    selectedIcon: Icons.settings,
+                    label: 'Settings',
+                    isSelected: false,
+                    onTap: () {
+                      Navigator.pop(context);
+                      _openSettings(context);
+                    },
+                    colorScheme: colorScheme,
+                  ),
+                ],
+              ),
+            ),
+
+            // Footer
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                border: Border(
+                  top: BorderSide(
+                    color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+                  ),
+                ),
+              ),
+              child: Center(
+                child: Text(
+                  _appVersion.isNotEmpty
+                      ? 'Version $_appVersion'
+                      : 'DocScanner+',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
