@@ -6,14 +6,15 @@
 import 'dart:async' as _i3;
 import 'dart:io' as _i4;
 
-import 'package:docscannerplus/models/document_model.dart' as _i6;
+import 'package:docscannerplus/models/cloud_file_metadata.dart' as _i5;
+import 'package:docscannerplus/models/document_model.dart' as _i7;
 import 'package:docscannerplus/repositories/cloud_repository.dart' as _i2;
-import 'package:docscannerplus/repositories/document_repository.dart' as _i5;
-import 'package:docscannerplus/services/analytics_service.dart' as _i7;
+import 'package:docscannerplus/repositories/document_repository.dart' as _i6;
+import 'package:docscannerplus/services/analytics_service.dart' as _i8;
 import 'package:docscannerplus/services/cloud/cloud_storage_service.dart'
-    as _i8;
+    as _i9;
 import 'package:mockito/mockito.dart' as _i1;
-import 'package:mockito/src/dummies.dart' as _i9;
+import 'package:mockito/src/dummies.dart' as _i10;
 
 // ignore_for_file: type=lint
 // ignore_for_file: avoid_redundant_argument_values
@@ -97,21 +98,21 @@ class MockCloudRepository extends _i1.Mock implements _i2.CloudRepository {
           as _i3.Future<void>);
 
   @override
-  _i3.Future<Map<String, String>> listFiles() =>
+  _i3.Future<List<_i5.CloudFileMetadata>> listFiles() =>
       (super.noSuchMethod(
             Invocation.method(#listFiles, []),
-            returnValue: _i3.Future<Map<String, String>>.value(
-              <String, String>{},
+            returnValue: _i3.Future<List<_i5.CloudFileMetadata>>.value(
+              <_i5.CloudFileMetadata>[],
             ),
           )
-          as _i3.Future<Map<String, String>>);
+          as _i3.Future<List<_i5.CloudFileMetadata>>);
 }
 
 /// A class which mocks [DocumentRepository].
 ///
 /// See the documentation for Mockito's code generation for more information.
 class MockDocumentRepository extends _i1.Mock
-    implements _i5.DocumentRepository {
+    implements _i6.DocumentRepository {
   MockDocumentRepository() {
     _i1.throwOnMissingStub(this);
   }
@@ -126,55 +127,55 @@ class MockDocumentRepository extends _i1.Mock
           as _i3.Future<void>);
 
   @override
-  _i3.Future<List<_i6.DocumentModel>> loadDocuments() =>
+  _i3.Future<List<_i7.DocumentModel>> loadDocuments() =>
       (super.noSuchMethod(
             Invocation.method(#loadDocuments, []),
-            returnValue: _i3.Future<List<_i6.DocumentModel>>.value(
-              <_i6.DocumentModel>[],
+            returnValue: _i3.Future<List<_i7.DocumentModel>>.value(
+              <_i7.DocumentModel>[],
             ),
           )
-          as _i3.Future<List<_i6.DocumentModel>>);
+          as _i3.Future<List<_i7.DocumentModel>>);
 
   @override
-  _i3.Future<List<_i6.DocumentModel>> loadActiveDocuments() =>
+  _i3.Future<List<_i7.DocumentModel>> loadActiveDocuments() =>
       (super.noSuchMethod(
             Invocation.method(#loadActiveDocuments, []),
-            returnValue: _i3.Future<List<_i6.DocumentModel>>.value(
-              <_i6.DocumentModel>[],
+            returnValue: _i3.Future<List<_i7.DocumentModel>>.value(
+              <_i7.DocumentModel>[],
             ),
           )
-          as _i3.Future<List<_i6.DocumentModel>>);
+          as _i3.Future<List<_i7.DocumentModel>>);
 
   @override
-  _i3.Stream<List<_i6.DocumentModel>> watchActiveDocuments({int? limit}) =>
+  _i3.Stream<List<_i7.DocumentModel>> watchActiveDocuments({
+    int? limit,
+    String? folderId,
+    _i7.DocumentSortOption? sort,
+    String? tag,
+  }) =>
       (super.noSuchMethod(
-            Invocation.method(#watchActiveDocuments, [], {#limit: limit}),
-            returnValue: _i3.Stream<List<_i6.DocumentModel>>.empty(),
+            Invocation.method(#watchActiveDocuments, [], {
+              #limit: limit,
+              #folderId: folderId,
+              #sort: sort,
+              #tag: tag,
+            }),
+            returnValue: _i3.Stream<List<_i7.DocumentModel>>.empty(),
           )
-          as _i3.Stream<List<_i6.DocumentModel>>);
+          as _i3.Stream<List<_i7.DocumentModel>>);
 
   @override
-  _i3.Future<List<_i6.DocumentModel>> loadDocumentsInFolder(String? folderId) =>
-      (super.noSuchMethod(
-            Invocation.method(#loadDocumentsInFolder, [folderId]),
-            returnValue: _i3.Future<List<_i6.DocumentModel>>.value(
-              <_i6.DocumentModel>[],
-            ),
-          )
-          as _i3.Future<List<_i6.DocumentModel>>);
-
-  @override
-  _i3.Future<List<_i6.DocumentModel>> loadTrashedDocuments() =>
+  _i3.Future<List<_i7.DocumentModel>> loadTrashedDocuments() =>
       (super.noSuchMethod(
             Invocation.method(#loadTrashedDocuments, []),
-            returnValue: _i3.Future<List<_i6.DocumentModel>>.value(
-              <_i6.DocumentModel>[],
+            returnValue: _i3.Future<List<_i7.DocumentModel>>.value(
+              <_i7.DocumentModel>[],
             ),
           )
-          as _i3.Future<List<_i6.DocumentModel>>);
+          as _i3.Future<List<_i7.DocumentModel>>);
 
   @override
-  _i3.Future<void> saveDocuments(List<_i6.DocumentModel>? docs) =>
+  _i3.Future<void> saveDocuments(List<_i7.DocumentModel>? docs) =>
       (super.noSuchMethod(
             Invocation.method(#saveDocuments, [docs]),
             returnValue: _i3.Future<void>.value(),
@@ -183,7 +184,7 @@ class MockDocumentRepository extends _i1.Mock
           as _i3.Future<void>);
 
   @override
-  _i3.Future<void> saveNewDocument(_i6.DocumentModel? doc) =>
+  _i3.Future<void> saveNewDocument(_i7.DocumentModel? doc) =>
       (super.noSuchMethod(
             Invocation.method(#saveNewDocument, [doc]),
             returnValue: _i3.Future<void>.value(),
@@ -192,7 +193,7 @@ class MockDocumentRepository extends _i1.Mock
           as _i3.Future<void>);
 
   @override
-  _i3.Future<void> moveToTrash(_i6.DocumentModel? doc) =>
+  _i3.Future<void> moveToTrash(_i7.DocumentModel? doc) =>
       (super.noSuchMethod(
             Invocation.method(#moveToTrash, [doc]),
             returnValue: _i3.Future<void>.value(),
@@ -201,7 +202,7 @@ class MockDocumentRepository extends _i1.Mock
           as _i3.Future<void>);
 
   @override
-  _i3.Future<void> restoreFromTrash(_i6.DocumentModel? doc) =>
+  _i3.Future<void> restoreFromTrash(_i7.DocumentModel? doc) =>
       (super.noSuchMethod(
             Invocation.method(#restoreFromTrash, [doc]),
             returnValue: _i3.Future<void>.value(),
@@ -210,7 +211,7 @@ class MockDocumentRepository extends _i1.Mock
           as _i3.Future<void>);
 
   @override
-  _i3.Future<void> deleteDocument(_i6.DocumentModel? doc) =>
+  _i3.Future<void> deleteDocument(_i7.DocumentModel? doc) =>
       (super.noSuchMethod(
             Invocation.method(#deleteDocument, [doc]),
             returnValue: _i3.Future<void>.value(),
@@ -237,7 +238,7 @@ class MockDocumentRepository extends _i1.Mock
           as _i3.Future<void>);
 
   @override
-  _i3.Future<void> updateDocument(_i6.DocumentModel? updatedDoc) =>
+  _i3.Future<void> updateDocument(_i7.DocumentModel? updatedDoc) =>
       (super.noSuchMethod(
             Invocation.method(#updateDocument, [updatedDoc]),
             returnValue: _i3.Future<void>.value(),
@@ -246,7 +247,17 @@ class MockDocumentRepository extends _i1.Mock
           as _i3.Future<void>);
 
   @override
-  _i3.Future<void> moveToFolder(_i6.DocumentModel? doc, String? folderId) =>
+  _i3.Future<List<_i7.DocumentModel>> loadDocumentsInFolder(String? folderId) =>
+      (super.noSuchMethod(
+            Invocation.method(#loadDocumentsInFolder, [folderId]),
+            returnValue: _i3.Future<List<_i7.DocumentModel>>.value(
+              <_i7.DocumentModel>[],
+            ),
+          )
+          as _i3.Future<List<_i7.DocumentModel>>);
+
+  @override
+  _i3.Future<void> moveToFolder(_i7.DocumentModel? doc, String? folderId) =>
       (super.noSuchMethod(
             Invocation.method(#moveToFolder, [doc, folderId]),
             returnValue: _i3.Future<void>.value(),
@@ -278,7 +289,7 @@ class MockDocumentRepository extends _i1.Mock
 /// A class which mocks [AnalyticsService].
 ///
 /// See the documentation for Mockito's code generation for more information.
-class MockAnalyticsService extends _i1.Mock implements _i7.AnalyticsService {
+class MockAnalyticsService extends _i1.Mock implements _i8.AnalyticsService {
   MockAnalyticsService() {
     _i1.throwOnMissingStub(this);
   }
@@ -383,7 +394,7 @@ class MockAnalyticsService extends _i1.Mock implements _i7.AnalyticsService {
 ///
 /// See the documentation for Mockito's code generation for more information.
 class MockCloudStorageService extends _i1.Mock
-    implements _i8.CloudStorageService {
+    implements _i9.CloudStorageService {
   MockCloudStorageService() {
     _i1.throwOnMissingStub(this);
   }
@@ -392,7 +403,7 @@ class MockCloudStorageService extends _i1.Mock
   String get providerId =>
       (super.noSuchMethod(
             Invocation.getter(#providerId),
-            returnValue: _i9.dummyValue<String>(
+            returnValue: _i10.dummyValue<String>(
               this,
               Invocation.getter(#providerId),
             ),
@@ -403,7 +414,7 @@ class MockCloudStorageService extends _i1.Mock
   String get displayName =>
       (super.noSuchMethod(
             Invocation.getter(#displayName),
-            returnValue: _i9.dummyValue<String>(
+            returnValue: _i10.dummyValue<String>(
               this,
               Invocation.getter(#displayName),
             ),
@@ -469,12 +480,12 @@ class MockCloudStorageService extends _i1.Mock
           as _i3.Future<void>);
 
   @override
-  _i3.Future<Map<String, String>> listFiles() =>
+  _i3.Future<List<_i5.CloudFileMetadata>> listFiles() =>
       (super.noSuchMethod(
             Invocation.method(#listFiles, []),
-            returnValue: _i3.Future<Map<String, String>>.value(
-              <String, String>{},
+            returnValue: _i3.Future<List<_i5.CloudFileMetadata>>.value(
+              <_i5.CloudFileMetadata>[],
             ),
           )
-          as _i3.Future<Map<String, String>>);
+          as _i3.Future<List<_i5.CloudFileMetadata>>);
 }

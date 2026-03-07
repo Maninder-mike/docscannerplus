@@ -6,11 +6,12 @@
 import 'dart:async' as _i3;
 import 'dart:io' as _i4;
 
+import 'package:docscannerplus/models/cloud_file_metadata.dart' as _i5;
 import 'package:docscannerplus/repositories/cloud_repository.dart' as _i2;
 import 'package:docscannerplus/services/cloud/cloud_storage_service.dart'
-    as _i5;
+    as _i6;
 import 'package:mockito/mockito.dart' as _i1;
-import 'package:mockito/src/dummies.dart' as _i6;
+import 'package:mockito/src/dummies.dart' as _i7;
 
 // ignore_for_file: type=lint
 // ignore_for_file: avoid_redundant_argument_values
@@ -94,21 +95,21 @@ class MockCloudRepository extends _i1.Mock implements _i2.CloudRepository {
           as _i3.Future<void>);
 
   @override
-  _i3.Future<Map<String, String>> listFiles() =>
+  _i3.Future<List<_i5.CloudFileMetadata>> listFiles() =>
       (super.noSuchMethod(
             Invocation.method(#listFiles, []),
-            returnValue: _i3.Future<Map<String, String>>.value(
-              <String, String>{},
+            returnValue: _i3.Future<List<_i5.CloudFileMetadata>>.value(
+              <_i5.CloudFileMetadata>[],
             ),
           )
-          as _i3.Future<Map<String, String>>);
+          as _i3.Future<List<_i5.CloudFileMetadata>>);
 }
 
 /// A class which mocks [CloudStorageService].
 ///
 /// See the documentation for Mockito's code generation for more information.
 class MockCloudStorageService extends _i1.Mock
-    implements _i5.CloudStorageService {
+    implements _i6.CloudStorageService {
   MockCloudStorageService() {
     _i1.throwOnMissingStub(this);
   }
@@ -117,7 +118,7 @@ class MockCloudStorageService extends _i1.Mock
   String get providerId =>
       (super.noSuchMethod(
             Invocation.getter(#providerId),
-            returnValue: _i6.dummyValue<String>(
+            returnValue: _i7.dummyValue<String>(
               this,
               Invocation.getter(#providerId),
             ),
@@ -128,7 +129,7 @@ class MockCloudStorageService extends _i1.Mock
   String get displayName =>
       (super.noSuchMethod(
             Invocation.getter(#displayName),
-            returnValue: _i6.dummyValue<String>(
+            returnValue: _i7.dummyValue<String>(
               this,
               Invocation.getter(#displayName),
             ),
@@ -194,12 +195,12 @@ class MockCloudStorageService extends _i1.Mock
           as _i3.Future<void>);
 
   @override
-  _i3.Future<Map<String, String>> listFiles() =>
+  _i3.Future<List<_i5.CloudFileMetadata>> listFiles() =>
       (super.noSuchMethod(
             Invocation.method(#listFiles, []),
-            returnValue: _i3.Future<Map<String, String>>.value(
-              <String, String>{},
+            returnValue: _i3.Future<List<_i5.CloudFileMetadata>>.value(
+              <_i5.CloudFileMetadata>[],
             ),
           )
-          as _i3.Future<Map<String, String>>);
+          as _i3.Future<List<_i5.CloudFileMetadata>>);
 }

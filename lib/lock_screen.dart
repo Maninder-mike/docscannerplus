@@ -99,27 +99,24 @@ class _LockScreenState extends State<LockScreen> {
 
                 const Gap(48),
 
-                // Lock icon / Unlock button
-                GestureDetector(
-                  onTap: _isAuthenticating ? null : _authenticate,
-                  child: Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      color: colorScheme.primaryContainer.withValues(
-                        alpha: 0.5,
-                      ),
-                      shape: BoxShape.circle,
-                    ),
-                    child: _isAuthenticating
-                        ? const CircularProgressIndicator()
-                        : Icon(
-                            Icons.fingerprint,
-                            size: 40,
-                            color: colorScheme.primary,
-                          ),
+                Animate(
+                  effects: [
+                    FadeEffect(delay: 200.ms),
+                    ScaleEffect(),
+                  ],
+                  child: IconButton.filledTonal(
+                    onPressed: _isAuthenticating ? null : _authenticate,
+                    iconSize: 40,
+                    padding: const EdgeInsets.all(20),
+                    icon: _isAuthenticating
+                        ? const SizedBox(
+                            width: 40,
+                            height: 40,
+                            child: CircularProgressIndicator(strokeWidth: 3),
+                          )
+                        : const Icon(Icons.fingerprint),
                   ),
-                ).animate().fadeIn(delay: 200.ms).scale(),
+                ),
 
                 const Gap(24),
 

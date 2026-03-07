@@ -95,6 +95,36 @@ class HomeActions {
         }
         clearSelection();
         _scheduleSync();
+
+        if (context.mounted) {
+          final count = selectedDocs.length;
+          ScaffoldMessenger.of(context).clearSnackBars();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('$count document(s) moved to trash'),
+              action: SnackBarAction(
+                label: 'Undo',
+                onPressed: () async {
+                  setLoading(true);
+                  try {
+                    for (final doc in selectedDocs) {
+                      await _repository.restoreFromTrash(doc);
+                    }
+                    _scheduleSync();
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Error restoring: $e')),
+                      );
+                    }
+                  } finally {
+                    setLoading(false);
+                  }
+                },
+              ),
+            ),
+          );
+        }
       } catch (e) {
         if (context.mounted) {
           ScaffoldMessenger.of(

@@ -4,16 +4,16 @@ import 'package:docscannerplus/providers/core_providers.dart';
 import 'package:docscannerplus/repositories/folder_repository.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-part 'folder_provider.g.dart';
-
-@riverpod
-FolderRepository folderRepository(Ref ref) {
+final folderRepositoryProvider = Provider<FolderRepository>((ref) {
   final prefs = ref.watch(sharedPreferencesProvider);
   return FolderRepository(prefs);
-}
+});
 
-@riverpod
-class SelectedFolder extends _$SelectedFolder {
+final selectedFolderProvider = NotifierProvider<SelectedFolder, String?>(() {
+  return SelectedFolder();
+});
+
+class SelectedFolder extends Notifier<String?> {
   @override
   String? build() => null;
 
@@ -22,8 +22,12 @@ class SelectedFolder extends _$SelectedFolder {
   }
 }
 
-@riverpod
-class SelectedFolderName extends _$SelectedFolderName {
+final selectedFolderNameProvider =
+    NotifierProvider<SelectedFolderName, String?>(() {
+      return SelectedFolderName();
+    });
+
+class SelectedFolderName extends Notifier<String?> {
   @override
   String? build() => null;
 
@@ -32,16 +36,14 @@ class SelectedFolderName extends _$SelectedFolderName {
   }
 }
 
-@riverpod
-Future<List<FolderModel>> folders(Ref ref) async {
+final foldersProvider = FutureProvider<List<FolderModel>>((ref) async {
   final repository = ref.watch(folderRepositoryProvider);
   return repository.loadFolders();
-}
+});
 
-@riverpod
-Future<Map<String?, int>> folderStats(Ref ref) async {
+final folderStatsProvider = FutureProvider<Map<String?, int>>((ref) async {
   // Watch document changes to auto-refresh stats
   ref.watch(activeDocumentsProvider);
   final docRepo = ref.watch(documentRepositoryProvider);
   return docRepo.getDocumentCountByFolder();
-}
+});

@@ -16,8 +16,6 @@ class FoldersPage extends ConsumerStatefulWidget {
 }
 
 class _FoldersPageState extends ConsumerState<FoldersPage> {
-  // _folderRepository is TODO: Migration to provider
-  // final _folderRepository = FolderRepository();
   @override
   Widget build(BuildContext context) {
     final foldersAsync = ref.watch(foldersProvider);
@@ -232,6 +230,7 @@ class _FoldersPageState extends ConsumerState<FoldersPage> {
   void _showFolderOptions(FolderModel folder) {
     showModalBottomSheet(
       context: context,
+      showDragHandle: true,
       builder: (context) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -296,6 +295,7 @@ class _FolderDialogState extends State<_FolderDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      icon: const Icon(Icons.folder),
       title: Text(widget.folder == null ? 'New Folder' : 'Edit Folder'),
       content: SingleChildScrollView(
         child: Column(

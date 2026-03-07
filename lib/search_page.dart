@@ -109,70 +109,58 @@ class _SearchPageState extends State<SearchPage> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: TextField(
-          controller: _searchController,
-          focusNode: _focusNode,
-          onChanged: _onSearchChanged,
-          decoration: InputDecoration(
-            hintText: 'Search documents...',
-            border: InputBorder.none,
-            hintStyle: TextStyle(color: colorScheme.outline),
-          ),
-          style: Theme.of(context).textTheme.bodyLarge,
-        ),
-        actions: [
-          if (_searchController.text.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.clear),
-              onPressed: () {
-                _searchController.clear();
-                _onSearchChanged('');
-              },
-            ),
-        ],
-      ),
-
-      body: Column(
-        children: [
-          if (_allTags.isNotEmpty)
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                children: _allTags.map((tag) {
-                  final isSelected = _selectedTag == tag;
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: FilterChip(
-                      label: Text(tag),
-                      selected: isSelected,
-                      onSelected: (_) => _onTagSelected(tag),
-                      showCheckmark: false,
-                      labelStyle: TextStyle(
-                        color: isSelected ? colorScheme.onPrimary : null,
-                      ),
-                      selectedColor: colorScheme.primary,
-                      backgroundColor: colorScheme.surfaceContainerHigh,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                        side: BorderSide(
-                          color: isSelected
-                              ? Colors.transparent
-                              : colorScheme.outlineVariant,
-                        ),
-                      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: SearchBar(
+                controller: _searchController,
+                focusNode: _focusNode,
+                hintText: 'Search documents...',
+                leading: IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: () => Navigator.pop(context),
+                ),
+                trailing: [
+                  if (_searchController.text.isNotEmpty)
+                    IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        _searchController.clear();
+                        _onSearchChanged('');
+                      },
                     ),
-                  );
-                }).toList(),
+                ],
+                onChanged: _onSearchChanged,
+                elevation: const WidgetStatePropertyAll(1.0),
               ),
             ),
-          Expanded(child: _buildBody(colorScheme)),
-        ],
+            if (_allTags.isNotEmpty)
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 0,
+                ),
+                child: Row(
+                  children: _allTags.map((tag) {
+                    final isSelected = _selectedTag == tag;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: FilterChip(
+                        label: Text(tag),
+                        selected: isSelected,
+                        onSelected: (_) => _onTagSelected(tag),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            const Gap(8),
+            Expanded(child: _buildBody(colorScheme)),
+          ],
+        ),
       ),
     );
   }

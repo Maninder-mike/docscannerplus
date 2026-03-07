@@ -177,74 +177,125 @@ class _TrashPageState extends ConsumerState<TrashPage> {
       itemCount: _trashedDocuments.length,
       itemBuilder: (context, index) {
         final doc = _trashedDocuments[index];
-        return _buildTrashItem(doc, colorScheme, index);
+        return _buildTrashItem(context, ref, doc, colorScheme, index);
       },
     );
   }
 
   Widget _buildTrashItem(
+    BuildContext context,
+    WidgetRef ref,
     DocumentModel doc,
     ColorScheme colorScheme,
     int index,
   ) {
     final daysLeft = doc.daysUntilPermanentDelete;
 
-    return Card(
-      elevation: 0,
-      color: colorScheme.surfaceContainer,
-      margin: const EdgeInsets.only(bottom: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: colorScheme.errorContainer.withValues(alpha: 0.5),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(Icons.picture_as_pdf, color: colorScheme.error),
-            ),
-            const Gap(16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    doc.title,
-                    style: Theme.of(context).textTheme.titleMedium,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+    return Dismissible(
+          key: ValueKey(doc.id),
+          direction: DismissDirection.endToStart,
+          background: Container(
+            color: colorScheme.error,
+            alignment: Alignment.centerRight,
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            margin: const EdgeInsets.only(bottom: 8),
+            child: Icon(Icons.delete_forever, color: colorScheme.onError),
+          ),
+          confirmDismiss: (direction) async {
+            return await showDialog<bool>(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Text('Delete Permanently'),
+                content: Text(
+                  'Permanently delete "${doc.title}"? This cannot be undone.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('Cancel'),
                   ),
-                  const Gap(4),
-                  Text(
-                    daysLeft > 0
-                        ? 'Deletes in $daysLeft days'
-                        : 'Deletes today',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: daysLeft <= 3
-                          ? colorScheme.error
-                          : colorScheme.outline,
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Theme.of(context).colorScheme.error,
                     ),
+                    child: const Text('Delete Forever'),
+                  ),
+                ],
+              ),
+            );
+          },
+          onDismissed: (_) async {
+            if (mounted) {
+              setState(() {
+                _trashedDocuments.removeWhere((d) => d.id == doc.id);
+              });
+            }
+            await ref.read(documentRepositoryProvider).deleteDocument(doc);
+            await _loadTrashedDocuments();
+          },
+          child: Card.filled(
+            color: colorScheme.surfaceContainer,
+            margin: const EdgeInsets.only(bottom: 8),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: colorScheme.errorContainer.withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(Icons.picture_as_pdf, color: colorScheme.error),
+                  ),
+                  const Gap(16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          doc.title,
+                          style: Theme.of(context).textTheme.titleMedium,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const Gap(4),
+                        Text(
+                          daysLeft > 0
+                              ? 'Deletes in $daysLeft days'
+                              : 'Deletes today',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: daysLeft <= 3
+                                    ? colorScheme.error
+                                    : colorScheme.outline,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => _restoreDocument(doc),
+                    icon: const Icon(Icons.restore),
+                    tooltip: 'Restore',
+                  ),
+                  IconButton(
+                    onPressed: () => _permanentlyDelete(doc),
+                    icon: Icon(Icons.delete_forever, color: colorScheme.error),
+                    tooltip: 'Delete Forever',
                   ),
                 ],
               ),
             ),
-            IconButton(
-              onPressed: () => _restoreDocument(doc),
-              icon: const Icon(Icons.restore),
-              tooltip: 'Restore',
-            ),
-            IconButton(
-              onPressed: () => _permanentlyDelete(doc),
-              icon: Icon(Icons.delete_forever, color: colorScheme.error),
-              tooltip: 'Delete Forever',
-            ),
-          ],
-        ),
-      ),
-    ).animate().fadeIn(delay: (index * 50).ms).slideX(begin: 0.05, end: 0);
+          ),
+        )
+        .animate()
+        .fadeIn(delay: Duration(milliseconds: index * 50))
+        .slideX(begin: 0.05, end: 0);
   }
 }

@@ -37,28 +37,24 @@ class _OnboardingPageState extends State<OnboardingPage> {
       title: 'Scan Documents',
       description:
           'Quickly scan documents using your camera with automatic edge detection and perspective correction.',
-      color: Colors.blue,
     ),
     _OnboardingSlide(
       icon: Icons.folder_outlined,
       title: 'Organize with Folders',
       description:
           'Keep your documents organized in color-coded folders for easy access and management.',
-      color: Colors.orange,
     ),
     _OnboardingSlide(
       icon: Icons.auto_fix_high,
       title: 'Apply Filters',
       description:
           'Enhance your scans with professional filters like Auto-Enhance, Black & White, and Magic Color.',
-      color: Colors.purple,
     ),
     _OnboardingSlide(
       icon: Icons.security,
       title: 'Secure & Private',
       description:
           'Your documents stay on your device. Enable biometric lock for extra security.',
-      color: Colors.green,
     ),
   ];
 
@@ -114,7 +110,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                 onPageChanged: (index) => setState(() => _currentPage = index),
                 itemCount: _slides.length,
                 itemBuilder: (context, index) {
-                  return _buildSlide(_slides[index]);
+                  return _buildSlide(_slides[index], index, colorScheme);
                 },
               ),
             ),
@@ -166,7 +162,19 @@ class _OnboardingPageState extends State<OnboardingPage> {
     );
   }
 
-  Widget _buildSlide(_OnboardingSlide slide) {
+  Widget _buildSlide(
+    _OnboardingSlide slide,
+    int index,
+    ColorScheme colorScheme,
+  ) {
+    final colors = [
+      colorScheme.primary,
+      colorScheme.secondary,
+      colorScheme.tertiary,
+      colorScheme.primary,
+    ];
+    final color = colors[index % colors.length];
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 32),
       child: Column(
@@ -176,10 +184,10 @@ class _OnboardingPageState extends State<OnboardingPage> {
             width: 120,
             height: 120,
             decoration: BoxDecoration(
-              color: slide.color.withValues(alpha: 0.15),
+              color: color.withValues(alpha: 0.15),
               shape: BoxShape.circle,
             ),
-            child: Icon(slide.icon, size: 56, color: slide.color),
+            child: Icon(slide.icon, size: 56, color: color),
           ).animate().scale(duration: 500.ms, curve: Curves.easeOutBack),
           const Gap(48),
           Text(
@@ -207,12 +215,10 @@ class _OnboardingSlide {
   final IconData icon;
   final String title;
   final String description;
-  final Color color;
 
   _OnboardingSlide({
     required this.icon,
     required this.title,
     required this.description,
-    required this.color,
   });
 }

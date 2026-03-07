@@ -2,18 +2,19 @@ import 'package:docscannerplus/models/document_model.dart';
 import 'package:docscannerplus/repositories/document_repository.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:docscannerplus/providers/core_providers.dart';
+import 'package:docscannerplus/providers/folder_provider.dart';
 
-part 'document_provider.g.dart';
-
-@riverpod
-DocumentRepository documentRepository(Ref ref) {
+final documentRepositoryProvider = Provider<DocumentRepository>((ref) {
   final isar = ref.watch(isarProvider);
   final prefs = ref.watch(sharedPreferencesProvider);
   return DocumentRepository(isar, prefs);
-}
+});
 
-@riverpod
-class DocumentLimit extends _$DocumentLimit {
+final documentLimitProvider = NotifierProvider<DocumentLimit, int>(() {
+  return DocumentLimit();
+});
+
+class DocumentLimit extends Notifier<int> {
   @override
   int build() => 20;
 
@@ -22,9 +23,17 @@ class DocumentLimit extends _$DocumentLimit {
   }
 }
 
-@riverpod
-Stream<List<DocumentModel>> activeDocuments(Ref ref) {
+final activeDocumentsProvider = StreamProvider<List<DocumentModel>>((ref) {
   final repository = ref.watch(documentRepositoryProvider);
   final limit = ref.watch(documentLimitProvider);
-  return repository.watchActiveDocuments(limit: limit);
-}
+  final folderId = ref.watch(selectedFolderProvider);
+  final sort = ref.watch(documentSortProvider);
+  final tag = ref.watch(documentTagFilterProvider);
+
+  return repository.watchActiveDocuments(
+    limit: limit,
+    folderId: folderId,
+    sort: sort,
+    tag: tag,
+  );
+});

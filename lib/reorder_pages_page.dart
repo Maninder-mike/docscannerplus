@@ -43,7 +43,18 @@ class _ReorderPagesPageState extends State<ReorderPagesPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Reorder Pages'),
-        actions: [TextButton(onPressed: _save, child: const Text('Is Done'))],
+        actions: [
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 8.0,
+            ),
+            child: FilledButton.tonal(
+              onPressed: _save,
+              child: const Text('Save'),
+            ),
+          ),
+        ],
       ),
       body: _currentPaths.isEmpty
           ? const Center(child: Text('No pages found'))

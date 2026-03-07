@@ -1,9 +1,11 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-part 'selection_provider.g.dart';
+final selectionProvider = NotifierProvider<Selection, Set<String>>(() {
+  return Selection();
+});
 
-@riverpod
-class Selection extends _$Selection {
+class Selection extends Notifier<Set<String>> {
   @override
   Set<String> build() {
     return {};
@@ -26,7 +28,6 @@ class Selection extends _$Selection {
   }
 }
 
-@riverpod
-bool isSelectionMode(Ref ref) {
+final isSelectionModeProvider = Provider<bool>((ref) {
   return ref.watch(selectionProvider).isNotEmpty;
-}
+});

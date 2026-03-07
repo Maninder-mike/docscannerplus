@@ -3,16 +3,16 @@ import 'package:flutter/material.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:docscannerplus/providers/core_providers.dart';
 
-part 'settings_provider.g.dart';
-
-@riverpod
-SettingsRepository settingsRepository(Ref ref) {
+final settingsRepositoryProvider = Provider<SettingsRepository>((ref) {
   final prefs = ref.watch(sharedPreferencesProvider);
   return SettingsRepository(prefs);
-}
+});
 
-@riverpod
-class ThemeSetting extends _$ThemeSetting {
+final themeSettingProvider = NotifierProvider<ThemeSetting, ThemeMode>(() {
+  return ThemeSetting();
+});
+
+class ThemeSetting extends Notifier<ThemeMode> {
   late final SettingsRepository _repository;
 
   @override

@@ -1,5 +1,6 @@
 import 'package:docscannerplus/home_page.dart';
 import 'package:docscannerplus/lock_screen.dart';
+import 'dart:async';
 import 'package:docscannerplus/onboarding_page.dart';
 import 'package:docscannerplus/repositories/security_repository.dart';
 
@@ -22,7 +23,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:isar_community/isar.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:docscannerplus/models/document_model.dart'; // For DocumentModelSchema
+import 'package:docscannerplus/models/document_model.dart'; // For DocumentModel
 import 'package:docscannerplus/providers/core_providers.dart';
 import 'package:docscannerplus/services/performance_service.dart';
 import 'package:docscannerplus/widgets/error_boundary.dart';
@@ -45,29 +46,31 @@ Future<void> main() async {
     debugPrint("Firebase initialization failed: $e");
   }
 
-  // Initialize Remote Config
-  try {
-    await RemoteConfigService().initialize();
-  } catch (e) {
-    debugPrint("Remote Config init failed: $e");
-  }
+  // Initialize Services (Non-blocking)
+  // We use unawaited to let these run in parallel with app launch
+  unawaited(
+    RemoteConfigService().initialize().catchError((e) {
+      debugPrint("Remote Config init failed: $e");
+    }),
+  );
 
-  // Initialize Messaging (FCM)
-  try {
-    await MessagingService().initialize();
-  } catch (e) {
-    debugPrint("Messaging init failed: $e");
-  }
+  unawaited(
+    MessagingService().initialize().catchError((e) {
+      debugPrint("Messaging init failed: $e");
+    }),
+  );
 
-  // Welcome Notification (Local)
-  try {
-    final localService = LocalNotificationService();
-    await localService.initialize();
-    // Fire and forget, don't await the delay
-    localService.checkAndShowWelcomeNotification();
-  } catch (e) {
-    debugPrint("Local notification init failed: $e");
-  }
+  unawaited(
+    LocalNotificationService()
+        .initialize()
+        .then((_) {
+          // Fire and forget welcome notification check
+          LocalNotificationService().checkAndShowWelcomeNotification();
+        })
+        .catchError((e) {
+          debugPrint("Local notification init failed: $e");
+        }),
+  );
 
   // Initialize Core Services
   late final SharedPreferences sharedPreferences;

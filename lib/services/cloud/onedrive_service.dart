@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:docscannerplus/models/cloud_file_metadata.dart';
 import 'package:aad_oauth/aad_oauth.dart';
 import 'package:aad_oauth/model/config.dart';
 import 'package:docscannerplus/main.dart' show appNavigatorKey;
@@ -265,16 +266,16 @@ class OneDriveService implements CloudStorageService {
   }
 
   @override
-  Future<Map<String, String>> listFiles() async {
-    if (_accessToken == null) return {};
+  Future<List<CloudFileMetadata>> listFiles() async {
+    if (_accessToken == null) return [];
 
     try {
       if (_appFolderId == null) await _ensureAppFolderExists();
-      if (_appFolderId == null) return {};
+      if (_appFolderId == null) return [];
 
       // List files from the app folder
       final url = Uri.parse(
-        'https://graph.microsoft.com/v1.0/me/drive/items/$_appFolderId/children',
+        'https://graph.microsoft.com/v1.0/me/drive/items/$_appFolderId/children?\$select=id,name,lastModifiedDateTime,size,file,deleted',
       );
 
       final response = await http.get(
@@ -285,20 +286,38 @@ class OneDriveService implements CloudStorageService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final List items = data['value'];
-        final map = <String, String>{};
+        final metadataList = <CloudFileMetadata>[];
+
         for (final item in items) {
           if (item['id'] != null &&
               item['name'] != null &&
               item['deleted'] == null) {
-            map[item['id']] = item['name'];
+            String? hash;
+            if (item['file'] != null && item['file']['hashes'] != null) {
+              // Prefer quickXorHash or sha1Hash
+              final hashes = item['file']['hashes'];
+              hash = hashes['sha1Hash'] ?? hashes['quickXorHash'];
+            }
+
+            metadataList.add(
+              CloudFileMetadata(
+                id: item['id'],
+                name: item['name'],
+                modifiedAt: item['lastModifiedDateTime'] != null
+                    ? DateTime.tryParse(item['lastModifiedDateTime'])
+                    : null,
+                contentHash: hash,
+                sizeBytes: item['size'],
+              ),
+            );
           }
         }
-        return map;
+        return metadataList;
       }
-      return {};
+      return [];
     } catch (e) {
       debugPrint('OneDrive List Failed: $e');
-      return {};
+      return [];
     }
   }
 }

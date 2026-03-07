@@ -1,9 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
-
+import 'package:isar_community/isar.dart';
 import 'package:docscannerplus/models/document_model.dart';
 import 'package:flutter/foundation.dart';
-import 'package:isar_community/isar.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -62,38 +61,54 @@ class DocumentRepository {
         .findAll();
   }
 
-  /// Watch active documents (stream updates).
-  Stream<List<DocumentModel>> watchActiveDocuments({int? limit}) async* {
+  /// Watch active documents (stream updates) with filtering and sorting.
+  Stream<List<DocumentModel>> watchActiveDocuments({
+    int? limit,
+    String? folderId,
+    DocumentSortOption? sort,
+    String? tag,
+  }) async* {
     final isar = await _db;
-    var query = isar.documentModels
-        .filter()
-        .deletedAtIsNull()
-        .sortByCreatedAtDesc();
+
+    // Start with base filter for active (non-deleted) documents
+    var query = isar.documentModels.filter().deletedAtIsNull();
+
+    // Add folder filter
+    if (folderId != null) {
+      if (folderId == 'uncategorized') {
+        query = query.folderIdIsNull();
+      } else {
+        query = query.folderIdEqualTo(folderId);
+      }
+    }
+
+    // Add tag filter
+    if (tag != null) {
+      query = query.tagsElementEqualTo(tag);
+    }
+
+    // Add sorting
+    QueryBuilder<DocumentModel, DocumentModel, QAfterSortBy> sortedQuery;
+    switch (sort ?? DocumentSortOption.dateDesc) {
+      case DocumentSortOption.dateDesc:
+        sortedQuery = query.sortByCreatedAtDesc();
+        break;
+      case DocumentSortOption.dateAsc:
+        sortedQuery = query.sortByCreatedAt();
+        break;
+      case DocumentSortOption.nameAsc:
+        sortedQuery = query.sortByTitle();
+        break;
+      case DocumentSortOption.nameDesc:
+        sortedQuery = query.sortByTitleDesc();
+        break;
+    }
 
     if (limit != null) {
-      yield* query.limit(limit).watch(fireImmediately: true);
+      yield* sortedQuery.limit(limit).watch(fireImmediately: true);
     } else {
-      yield* query.watch(fireImmediately: true);
+      yield* sortedQuery.watch(fireImmediately: true);
     }
-  }
-
-  /// Load only documents in a specific folder.
-  Future<List<DocumentModel>> loadDocumentsInFolder(String? folderId) async {
-    final isar = await _db;
-    if (folderId == null) {
-      return isar.documentModels
-          .filter()
-          .deletedAtIsNull()
-          .folderIdIsNull()
-          .sortByCreatedAtDesc()
-          .findAll();
-    }
-    return isar.documentModels
-        .filter()
-        .deletedAtIsNull()
-        .folderIdEqualTo(folderId)
-        .sortByCreatedAtDesc()
-        .findAll();
   }
 
   /// Load only trashed documents.
@@ -215,19 +230,30 @@ class DocumentRepository {
     });
   }
 
-  /// Move document to a folder.
-  Future<void> moveToFolder(DocumentModel doc, String? folderId) async {
-    final updatedDoc = doc.copyWith(
-      folderId: folderId,
-      clearFolderId: folderId == null,
-    );
-    await updateDocument(updatedDoc);
+  /// Load all documents in a specific folder.
+  Future<List<DocumentModel>> loadDocumentsInFolder(String? folderId) async {
+    final isar = await _db;
+    if (folderId == null || folderId == 'uncategorized') {
+      return isar.documentModels.filter().folderIdIsNull().findAll();
+    }
+    return isar.documentModels.filter().folderIdEqualTo(folderId).findAll();
   }
 
+  /// Move a document to a specific folder.
+  Future<void> moveToFolder(DocumentModel doc, String? folderId) async {
+    final isar = await _db;
+    final updated = doc.copyWith(folderId: folderId);
+    await isar.writeTxn(() async {
+      await isar.documentModels.put(updated);
+    });
+  }
+
+  /// Get counts of documents per folder.
   Future<Map<String?, int>> getDocumentCountByFolder() async {
-    // This is less efficient in NoSQL if we don't have aggregations, but Isar is fast.
-    final docs = await loadActiveDocuments();
-    final counts = <String?, int>{};
+    final isar = await _db;
+    final docs = await isar.documentModels.filter().deletedAtIsNull().findAll();
+
+    final Map<String?, int> counts = {};
     for (final doc in docs) {
       counts[doc.folderId] = (counts[doc.folderId] ?? 0) + 1;
     }

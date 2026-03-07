@@ -69,22 +69,22 @@ class MockDocumentRepository extends _i1.Mock
           as _i3.Future<List<_i4.DocumentModel>>);
 
   @override
-  _i3.Stream<List<_i4.DocumentModel>> watchActiveDocuments({int? limit}) =>
+  _i3.Stream<List<_i4.DocumentModel>> watchActiveDocuments({
+    int? limit,
+    String? folderId,
+    _i4.DocumentSortOption? sort,
+    String? tag,
+  }) =>
       (super.noSuchMethod(
-            Invocation.method(#watchActiveDocuments, [], {#limit: limit}),
+            Invocation.method(#watchActiveDocuments, [], {
+              #limit: limit,
+              #folderId: folderId,
+              #sort: sort,
+              #tag: tag,
+            }),
             returnValue: _i3.Stream<List<_i4.DocumentModel>>.empty(),
           )
           as _i3.Stream<List<_i4.DocumentModel>>);
-
-  @override
-  _i3.Future<List<_i4.DocumentModel>> loadDocumentsInFolder(String? folderId) =>
-      (super.noSuchMethod(
-            Invocation.method(#loadDocumentsInFolder, [folderId]),
-            returnValue: _i3.Future<List<_i4.DocumentModel>>.value(
-              <_i4.DocumentModel>[],
-            ),
-          )
-          as _i3.Future<List<_i4.DocumentModel>>);
 
   @override
   _i3.Future<List<_i4.DocumentModel>> loadTrashedDocuments() =>
@@ -167,6 +167,16 @@ class MockDocumentRepository extends _i1.Mock
             returnValueForMissingStub: _i3.Future<void>.value(),
           )
           as _i3.Future<void>);
+
+  @override
+  _i3.Future<List<_i4.DocumentModel>> loadDocumentsInFolder(String? folderId) =>
+      (super.noSuchMethod(
+            Invocation.method(#loadDocumentsInFolder, [folderId]),
+            returnValue: _i3.Future<List<_i4.DocumentModel>>.value(
+              <_i4.DocumentModel>[],
+            ),
+          )
+          as _i3.Future<List<_i4.DocumentModel>>);
 
   @override
   _i3.Future<void> moveToFolder(_i4.DocumentModel? doc, String? folderId) =>

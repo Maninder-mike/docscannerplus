@@ -4,16 +4,17 @@ import 'package:docscannerplus/providers/core_providers.dart';
 import 'package:docscannerplus/providers/document_provider.dart';
 import 'package:docscannerplus/services/sync_service.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-
-part 'sync_provider.g.dart';
 
 /// Sync state enum
 enum SyncStatus { idle, syncing, error }
 
-/// Provider for managing cloud sync with debounced auto-sync
-@Riverpod(keepAlive: true)
-class SyncController extends _$SyncController {
+final syncControllerProvider = NotifierProvider<SyncController, SyncStatus>(() {
+  return SyncController();
+});
+
+class SyncController extends Notifier<SyncStatus> {
   Timer? _debounceTimer;
   static const _debounceDelay = Duration(seconds: 3);
 

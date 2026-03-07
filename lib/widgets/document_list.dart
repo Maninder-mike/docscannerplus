@@ -1,15 +1,15 @@
 import 'dart:io';
 
 import 'package:docscannerplus/models/document_model.dart';
+import 'package:docscannerplus/providers/core_providers.dart';
 import 'package:docscannerplus/providers/document_provider.dart';
-import 'package:docscannerplus/providers/folder_provider.dart';
 import 'package:docscannerplus/providers/selection_provider.dart';
 import 'package:docscannerplus/services/thumbnail_service.dart';
+import 'package:docscannerplus/widgets/document_preview_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
-import 'package:open_filex/open_filex.dart';
 
 class DocumentList extends ConsumerWidget {
   const DocumentList({super.key});
@@ -17,9 +17,10 @@ class DocumentList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // 1. Watch documents
-    final documentsAsync = ref.watch(activeDocumentsProvider);
+    final activeDocsAsync = ref.watch(activeDocumentsProvider);
+    final showFavoritesOnly = ref.watch(showFavoritesOnlyProvider);
 
-    return documentsAsync.when(
+    return activeDocsAsync.when(
       loading: () {
         debugPrint('DocumentList: Loading...');
         return const SliverFillRemaining(
@@ -32,13 +33,10 @@ class DocumentList extends ConsumerWidget {
       },
       data: (allDocuments) {
         debugPrint('DocumentList: Received ${allDocuments.length} documents');
-        // 2. Filter by Folder
-        final selectedFolderId = ref.watch(selectedFolderProvider);
-        final documents = selectedFolderId == null
-            ? allDocuments
-            : allDocuments
-                  .where((d) => d.folderId == selectedFolderId)
-                  .toList();
+
+        final documents = showFavoritesOnly
+            ? allDocuments.where((doc) => doc.isFavorite).toList()
+            : allDocuments;
 
         if (documents.isEmpty) {
           return SliverFillRemaining(
@@ -76,20 +74,29 @@ class DocumentList extends ConsumerWidget {
           );
         }
 
+        final isGridView = ref.watch(isGridViewProvider);
+
         return SliverPadding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          sliver: SliverGrid(
-            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 200,
-              mainAxisSpacing: 16,
-              crossAxisSpacing: 16,
-              childAspectRatio: 0.70,
-            ),
-            delegate: SliverChildBuilderDelegate((context, index) {
-              final doc = documents[index];
-              return DocumentCard(doc: doc, index: index);
-            }, childCount: documents.length),
-          ),
+          sliver: isGridView
+              ? SliverGrid(
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 200,
+                    mainAxisSpacing: 16,
+                    crossAxisSpacing: 16,
+                    childAspectRatio: 0.70,
+                  ),
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                    final doc = documents[index];
+                    return DocumentCard(doc: doc, index: index);
+                  }, childCount: documents.length),
+                )
+              : SliverList(
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                    final doc = documents[index];
+                    return DocumentListTile(doc: doc, index: index);
+                  }, childCount: documents.length),
+                ),
         );
       },
     );
@@ -101,6 +108,19 @@ class DocumentCard extends ConsumerWidget {
   final int index;
 
   const DocumentCard({super.key, required this.doc, required this.index});
+
+  Future<void> _toggleFavorite(BuildContext context, WidgetRef ref) async {
+    try {
+      final updatedDoc = doc.copyWith(isFavorite: !doc.isFavorite);
+      await ref.read(documentRepositoryProvider).updateDocument(updatedDoc);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to update favorite status')),
+        );
+      }
+    }
+  }
 
   String _getFilterShortName(String filterType) {
     switch (filterType) {
@@ -117,62 +137,46 @@ class DocumentCard extends ConsumerWidget {
     }
   }
 
-  Future<void> _openDocument(BuildContext context, DocumentModel doc) async {
-    if (doc.filePath != null) {
-      final result = await OpenFilex.open(doc.filePath!);
-      if (result.type != ResultType.done) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Could not open file: ${result.message}')),
-          );
-        }
-      }
-    } else {
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('File path not found')));
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selectedIds = ref.watch(selectionProvider);
     final isSelected = selectedIds.contains(doc.id);
     final isSelectionMode = ref.watch(isSelectionModeProvider);
 
-    return GestureDetector(
-          onLongPress: () {
-            ref
-                .read(selectionProvider.notifier)
-                .select(doc.id); // Triggers selection mode
-          },
-          onTap: () {
-            if (isSelectionMode) {
-              ref.read(selectionProvider.notifier).toggle(doc.id);
-            } else {
-              _openDocument(context, doc);
-            }
-          },
-          child: Container(
-            decoration: BoxDecoration(
+    return Card(
+          elevation: isSelected ? 2 : 0,
+          clipBehavior: Clip.antiAlias,
+          margin: EdgeInsets.zero,
+          color: isSelected
+              ? Theme.of(context).colorScheme.secondaryContainer
+              : Theme.of(context).colorScheme.surfaceContainerLow,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(
               color: isSelected
-                  ? Theme.of(
+                  ? Theme.of(context).colorScheme.primary
+                  : Theme.of(
                       context,
-                    ).colorScheme.primaryContainer.withValues(alpha: 0.3)
-                  : Theme.of(context).colorScheme.surfaceContainer,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: isSelected
-                    ? Theme.of(context).colorScheme.primary
-                    : Theme.of(
-                        context,
-                      ).colorScheme.outlineVariant.withValues(alpha: 0.3),
-                width: isSelected ? 2 : 1,
-              ),
+                    ).colorScheme.outlineVariant.withValues(alpha: 0.3),
+              width: isSelected ? 2 : 1,
             ),
-            clipBehavior: Clip.antiAlias,
+          ),
+          child: InkWell(
+            onLongPress: () {
+              ref.read(selectionProvider.notifier).select(doc.id);
+            },
+            onTap: () {
+              if (isSelectionMode) {
+                ref.read(selectionProvider.notifier).toggle(doc.id);
+              } else {
+                showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  builder: (context) =>
+                      DocumentPreviewSheet(documentId: doc.id),
+                );
+              }
+            },
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -213,82 +217,108 @@ class DocumentCard extends ConsumerWidget {
                       ),
                       const Gap(4),
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            doc.formattedDate,
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onSurfaceVariant,
-                                  fontSize: 10,
-                                ),
-                          ),
-                          Row(
-                            children: [
-                              if (doc.filterType != null &&
-                                  doc.filterType != 'original')
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 2,
-                                  ),
-                                  margin: const EdgeInsets.only(right: 4),
-                                  decoration: BoxDecoration(
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.tertiaryContainer,
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.auto_fix_high,
-                                        size: 10,
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  doc.formattedDate,
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(
                                         color: Theme.of(
                                           context,
-                                        ).colorScheme.onTertiaryContainer,
+                                        ).colorScheme.onSurfaceVariant,
+                                        fontSize: 10,
                                       ),
-                                      const Gap(2),
-                                      Text(
-                                        _getFilterShortName(doc.filterType!),
-                                        style: TextStyle(
-                                          fontSize: 9,
+                                ),
+                                const Gap(4),
+                                Row(
+                                  children: [
+                                    if (doc.filterType != null &&
+                                        doc.filterType != 'original')
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
+                                        margin: const EdgeInsets.only(right: 4),
+                                        decoration: BoxDecoration(
                                           color: Theme.of(
                                             context,
-                                          ).colorScheme.onTertiaryContainer,
-                                          fontWeight: FontWeight.w600,
+                                          ).colorScheme.tertiaryContainer,
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(
+                                              Icons.auto_fix_high,
+                                              size: 10,
+                                              color: Theme.of(
+                                                context,
+                                              ).colorScheme.onTertiaryContainer,
+                                            ),
+                                            const Gap(2),
+                                            Text(
+                                              _getFilterShortName(
+                                                doc.filterType!,
+                                              ),
+                                              style: TextStyle(
+                                                fontSize: 9,
+                                                color: Theme.of(
+                                                  context,
+                                                ).colorScheme.onTertiaryContainer,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
-                                    ],
-                                  ),
+                                    if (doc.pageCount > 1)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.secondaryContainer,
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          '${doc.pageCount}p',
+                                          style: TextStyle(
+                                            fontSize: 9,
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.onSecondaryContainer,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
                                 ),
-                              if (doc.pageCount > 1)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Theme.of(
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon: Icon(
+                              doc.isFavorite ? Icons.star : Icons.star_border,
+                              color: doc.isFavorite
+                                  ? Colors.amber
+                                  : Theme.of(
                                       context,
-                                    ).colorScheme.secondaryContainer,
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    '${doc.pageCount}p',
-                                    style: TextStyle(
-                                      fontSize: 9,
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.onSecondaryContainer,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                            ],
+                                    ).colorScheme.onSurfaceVariant,
+                              size: 18,
+                            ),
+                            onPressed: () => _toggleFavorite(context, ref),
+                            visualDensity: VisualDensity.compact,
                           ),
                         ],
                       ),
@@ -300,8 +330,8 @@ class DocumentCard extends ConsumerWidget {
           ),
         )
         .animate()
-        .fadeIn(delay: (50 * index).ms)
-        .slideY(begin: 0.1, duration: 400.ms);
+        .fadeIn(delay: Duration(milliseconds: 50 * index))
+        .slideY(begin: 0.1, duration: const Duration(milliseconds: 400));
   }
 }
 
@@ -371,5 +401,226 @@ class _ThumbnailWidgetState extends State<_ThumbnailWidget> {
         ),
       ),
     );
+  }
+}
+
+class DocumentListTile extends ConsumerWidget {
+  final DocumentModel doc;
+  final int index;
+
+  const DocumentListTile({super.key, required this.doc, required this.index});
+
+  Future<void> _toggleFavorite(BuildContext context, WidgetRef ref) async {
+    try {
+      final updatedDoc = doc.copyWith(isFavorite: !doc.isFavorite);
+      await ref.read(documentRepositoryProvider).updateDocument(updatedDoc);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to update favorite status')),
+        );
+      }
+    }
+  }
+
+  String _getFilterShortName(String filterType) {
+    switch (filterType) {
+      case 'autoEnhance':
+        return 'Auto';
+      case 'blackAndWhite':
+        return 'B&W';
+      case 'grayscale':
+        return 'Gray';
+      case 'magicColor':
+        return 'Magic';
+      default:
+        return filterType;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selectedIds = ref.watch(selectionProvider);
+    final isSelected = selectedIds.contains(doc.id);
+    final isSelectionMode = ref.watch(isSelectionModeProvider);
+
+    return Card(
+          elevation: isSelected ? 2 : 0,
+          clipBehavior: Clip.antiAlias,
+          margin: const EdgeInsets.only(bottom: 8),
+          color: isSelected
+              ? Theme.of(context).colorScheme.secondaryContainer
+              : Theme.of(context).colorScheme.surfaceContainerLow,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(
+              color: isSelected
+                  ? Theme.of(context).colorScheme.primary
+                  : Theme.of(
+                      context,
+                    ).colorScheme.outlineVariant.withValues(alpha: 0.3),
+              width: isSelected ? 2 : 1,
+            ),
+          ),
+          child: InkWell(
+            onLongPress: () {
+              ref.read(selectionProvider.notifier).select(doc.id);
+            },
+            onTap: () {
+              if (isSelectionMode) {
+                ref.read(selectionProvider.notifier).toggle(doc.id);
+              } else {
+                showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  builder: (context) =>
+                      DocumentPreviewSheet(documentId: doc.id),
+                );
+              }
+            },
+            child: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Row(
+                children: [
+                  // Thumbnail
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: SizedBox(
+                      width: 60,
+                      height: 80,
+                      child: Stack(
+                        children: [
+                          _ThumbnailWidget(doc: doc),
+                          if (isSelected || isSelectionMode)
+                            Positioned(
+                              top: 4,
+                              right: 4,
+                              child: Icon(
+                                isSelected
+                                    ? Icons.check_circle
+                                    : Icons.radio_button_unchecked,
+                                size: 20,
+                                color: isSelected
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Theme.of(
+                                        context,
+                                      ).colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const Gap(12),
+                  // Details
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          doc.title,
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const Gap(4),
+                        Text(
+                          doc.formattedDate,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                                fontSize: 12,
+                              ),
+                        ),
+                        const Gap(8),
+                        Row(
+                          children: [
+                            if (doc.filterType != null &&
+                                doc.filterType != 'original')
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                margin: const EdgeInsets.only(right: 4),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.tertiaryContainer,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.auto_fix_high,
+                                      size: 10,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onTertiaryContainer,
+                                    ),
+                                    const Gap(2),
+                                    Text(
+                                      _getFilterShortName(doc.filterType!),
+                                      style: TextStyle(
+                                        fontSize: 9,
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.onTertiaryContainer,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            if (doc.pageCount > 1)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.secondaryContainer,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  '${doc.pageCount}p',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSecondaryContainer,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Favorite Button Placeholder (will add logic later)
+                  IconButton(
+                    icon: Icon(
+                      doc.isFavorite ? Icons.star : Icons.star_border,
+                      color: doc.isFavorite
+                          ? Colors.amber
+                          : Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                    onPressed: () => _toggleFavorite(context, ref),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        )
+        .animate()
+        .fadeIn(delay: Duration(milliseconds: 50 * index))
+        .slideX(begin: 0.1, duration: const Duration(milliseconds: 400));
   }
 }

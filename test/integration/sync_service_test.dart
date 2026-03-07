@@ -12,6 +12,7 @@ import 'package:path/path.dart' as path;
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:docscannerplus/models/cloud_file_metadata.dart';
 
 @GenerateMocks([CloudRepository, CloudStorageService])
 import 'sync_service_test.mocks.dart';
@@ -91,7 +92,7 @@ void main() {
     await docRepo.saveNewDocument(doc);
 
     // 2. Mock cloud state: No files in cloud
-    when(mockCloudRepo.listFiles()).thenAnswer((_) async => {});
+    when(mockCloudRepo.listFiles()).thenAnswer((_) async => []);
     // Mock upload
     when(
       mockCloudRepo.uploadFile(any, any),
@@ -112,9 +113,17 @@ void main() {
 
   test('sync should download missing cloud file', () async {
     // 1. Mock cloud state: One file
-    when(
-      mockCloudRepo.listFiles(),
-    ).thenAnswer((_) async => {'cloud_id_456': 'cloud_doc.pdf'});
+    when(mockCloudRepo.listFiles()).thenAnswer(
+      (_) async => [
+        CloudFileMetadata(
+          id: 'cloud_id_456',
+          name: 'cloud_doc.pdf',
+          modifiedAt: DateTime.now(),
+          contentHash: null,
+          sizeBytes: 1024,
+        ),
+      ],
+    );
 
     // Mock download
     when(mockCloudRepo.downloadFile(any, any)).thenAnswer((invocation) async {
@@ -157,7 +166,7 @@ void main() {
 
     // 2. Mock cloud state - empty to avoid download attempts
     // The trashed doc won't try to download since it's already trashed
-    when(mockCloudRepo.listFiles()).thenAnswer((_) async => {});
+    when(mockCloudRepo.listFiles()).thenAnswer((_) async => []);
     when(mockCloudRepo.deleteFile(any)).thenAnswer((_) async {});
 
     // 3. Run Sync
@@ -189,7 +198,7 @@ void main() {
     // 2. Mock cloud state: file is NOT in cloud (was deleted remotely)
     // But the file still exists locally and will try to upload since cloudFileId not in cloud
     // Actually, since file has cloudFileId but NOT in cloud -> sync detects remote deletion
-    when(mockCloudRepo.listFiles()).thenAnswer((_) async => {});
+    when(mockCloudRepo.listFiles()).thenAnswer((_) async => []);
     // Need to stub uploadFile since sync tries to upload local files first
     when(
       mockCloudRepo.uploadFile(any, any),

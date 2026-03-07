@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:docscannerplus/models/cloud_file_metadata.dart';
 
 import 'package:docscannerplus/repositories/settings_repository.dart';
 import 'package:docscannerplus/services/cloud/cloud_storage_service.dart';
@@ -86,8 +87,8 @@ class CloudRepository {
     return _activeService!.deleteFile(cloudId);
   }
 
-  Future<Map<String, String>> listFiles() async {
-    if (_activeService == null) return {};
+  Future<List<CloudFileMetadata>> listFiles() async {
+    if (_activeService == null) return [];
     return _activeService!.listFiles();
   }
 }

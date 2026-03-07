@@ -11,6 +11,7 @@ import 'package:path/path.dart' as path;
 
 import 'package:docscannerplus/services/analytics_service.dart';
 import 'package:docscannerplus/models/document_model.dart';
+import 'package:docscannerplus/models/cloud_file_metadata.dart';
 
 class SyncService {
   final CloudRepository cloudRepo;
@@ -40,20 +41,34 @@ class SyncService {
 
             try {
               // 1. Fetch Lists
-              // TODO: Ideally listFiles should return complex metadata (ID, Name, Hash/ModTime)
-              // Current implementation only returns ID -> Name
-              final cloudFiles = await cloudRepo.listFiles(); // ID -> Name
+              // Returns complex metadata (ID, Name, Hash/ModTime) as List<CloudFileMetadata>
+              final cloudFilesList = await cloudRepo.listFiles();
               final localDocs = await docRepo.loadActiveDocuments();
 
+              // Create lookup maps for efficiency
+              final cloudFilesById = {for (var f in cloudFilesList) f.id: f};
+              // Note: Drive allows duplicate names, this will keep the last one.
+              // Sufficient for name-based recovery.
+              final cloudFilesByName = {
+                for (var f in cloudFilesList) f.name: f,
+              };
+
               debugPrint(
-                'SyncService: Found ${cloudFiles.length} cloud files and ${localDocs.length} local docs.',
+                'SyncService: Found ${cloudFilesList.length} cloud files and ${localDocs.length} local docs.',
               );
 
               // 2. Upload missing or changed local files
-              uploadedCount = await _processUploads(localDocs, cloudFiles);
+              uploadedCount = await _processUploads(
+                localDocs,
+                cloudFilesById,
+                cloudFilesByName,
+              );
 
               // 3. Download missing cloud files
-              downloadedCount = await _processDownloads(cloudFiles, localDocs);
+              downloadedCount = await _processDownloads(
+                cloudFilesList,
+                localDocs,
+              );
 
               debugPrint(
                 'SyncService: Sync Complete. +$uploadedCount / +$downloadedCount',
@@ -63,7 +78,7 @@ class SyncService {
               await _processLocalDeletions();
 
               // 5. Handle cloud-side deletions (files deleted remotely)
-              await _processRemoteDeletions(localDocs, cloudFiles);
+              await _processRemoteDeletions(localDocs, cloudFilesById);
             } catch (e) {
               debugPrint('SyncService: Error during sync: $e');
               rethrow;
@@ -90,7 +105,8 @@ class SyncService {
 
   Future<int> _processUploads(
     List<DocumentModel> localDocs,
-    Map<String, String> cloudFiles,
+    Map<String, CloudFileMetadata> cloudFilesById,
+    Map<String, CloudFileMetadata> cloudFilesByName,
   ) async {
     int count = 0;
     for (final doc in localDocs) {
@@ -106,7 +122,7 @@ class SyncService {
       // Check if already synced and unchanged
       if (doc.cloudFileId != null && !isChanged) {
         // Verify if it still exists in cloud map
-        if (cloudFiles.containsKey(doc.cloudFileId)) {
+        if (cloudFilesById.containsKey(doc.cloudFileId)) {
           debugPrint(
             'SyncService: Doc ${doc.title} unchanged and in cloud. Skipping.',
           );
@@ -126,12 +142,8 @@ class SyncService {
       // Duplicate check by name (fallback if cloudFileId not set)
       String? existingCloudId;
       if (doc.cloudFileId == null) {
-        // Find key by value (name) - inefficient but simple for now
-        for (var entry in cloudFiles.entries) {
-          if (entry.value == fileName) {
-            existingCloudId = entry.key;
-            break;
-          }
+        if (cloudFilesByName.containsKey(fileName)) {
+          existingCloudId = cloudFilesByName[fileName]?.id;
         }
       }
 
@@ -174,15 +186,15 @@ class SyncService {
   }
 
   Future<int> _processDownloads(
-    Map<String, String> cloudFiles,
+    List<CloudFileMetadata> cloudFiles,
     List<DocumentModel> localDocs,
   ) async {
     int count = 0;
     final tmpDir = await getTemporaryDirectory();
 
-    for (final entry in cloudFiles.entries) {
-      final cloudId = entry.key;
-      final cloudName = entry.value;
+    for (final cloudFile in cloudFiles) {
+      final cloudId = cloudFile.id;
+      final cloudName = cloudFile.name;
 
       if (!cloudName.toLowerCase().endsWith('.pdf')) continue;
 
@@ -201,9 +213,8 @@ class SyncService {
         if (downloadedFile != null) {
           await docRepo.importDownloadedDocument(downloadedFile, cloudName);
           // Metadata update for the new doc
-          // We need doc ID to update metadata immediately.
-          // For now, next sync cycle will link it via name match.
-
+          // we assume importDownloadedDocument handles creation.
+          // In next sync, it will be linked by name.
           count++;
         }
       }
@@ -227,10 +238,11 @@ class SyncService {
 
   Future<void> _processRemoteDeletions(
     List<DocumentModel> localDocs,
-    Map<String, String> cloudFiles,
+    Map<String, CloudFileMetadata> cloudFilesById,
   ) async {
     for (final doc in localDocs) {
-      if (doc.cloudFileId != null && !cloudFiles.containsKey(doc.cloudFileId)) {
+      if (doc.cloudFileId != null &&
+          !cloudFilesById.containsKey(doc.cloudFileId)) {
         // File was in cloud but now it's gone - deleted remotely
         debugPrint(
           'SyncService: ${doc.title} deleted from cloud, moving to trash...',

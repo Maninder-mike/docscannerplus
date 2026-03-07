@@ -3,6 +3,20 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:animations/animations.dart';
 
 class AppTheme {
+  static ThemeData get _baseThemeData => ThemeData(
+    useMaterial3: true,
+    pageTransitionsTheme: const PageTransitionsTheme(
+      builders: {
+        TargetPlatform.android: SharedAxisPageTransitionsBuilder(
+          transitionType: SharedAxisTransitionType.horizontal,
+        ),
+        TargetPlatform.iOS: SharedAxisPageTransitionsBuilder(
+          transitionType: SharedAxisTransitionType.horizontal,
+        ),
+      },
+    ),
+  );
+
   static ThemeData lightTheme([ColorScheme? dynamicScheme]) {
     final scheme =
         dynamicScheme ??
@@ -11,33 +25,45 @@ class AppTheme {
           brightness: Brightness.light,
         );
 
-    return ThemeData(
-      useMaterial3: true,
+    return _baseThemeData.copyWith(
       colorScheme: scheme,
-      textTheme: GoogleFonts.outfitTextTheme().apply(
-        bodyColor: Colors.black87,
-        displayColor: Colors.black,
-      ),
+      textTheme: GoogleFonts.outfitTextTheme(),
       scaffoldBackgroundColor: scheme.surface,
-      appBarTheme: const AppBarTheme(
-        centerTitle: false,
-        scrolledUnderElevation: 0,
-        backgroundColor: Colors.transparent,
+      appBarTheme: AppBarTheme(centerTitle: false),
+      cardTheme: CardThemeData(
+        clipBehavior: Clip.antiAlias,
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
-      pageTransitionsTheme: const PageTransitionsTheme(
-        builders: {
-          TargetPlatform.android: SharedAxisPageTransitionsBuilder(
-            transitionType: SharedAxisTransitionType.horizontal,
-          ),
-          TargetPlatform.iOS: SharedAxisPageTransitionsBuilder(
-            transitionType: SharedAxisTransitionType.horizontal,
-          ),
-        },
+      dialogTheme: DialogThemeData(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
       ),
-      // Clean up the FAB to be more modern
-      floatingActionButtonTheme: FloatingActionButtonThemeData(
-        elevation: 4,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      bottomSheetTheme: const BottomSheetThemeData(
+        showDragHandle: true,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+      ),
+      listTileTheme: ListTileThemeData(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      navigationDrawerTheme: const NavigationDrawerThemeData(),
+      searchBarTheme: const SearchBarThemeData(
+        elevation: WidgetStatePropertyAll(0),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+      ),
+      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+        elevation: 3,
       ),
     );
   }
@@ -50,25 +76,45 @@ class AppTheme {
           brightness: Brightness.dark,
         );
 
-    return ThemeData(
-      useMaterial3: true,
+    return _baseThemeData.copyWith(
       colorScheme: scheme,
       textTheme: GoogleFonts.outfitTextTheme(ThemeData.dark().textTheme),
       scaffoldBackgroundColor: scheme.surface,
-      appBarTheme: const AppBarTheme(
-        centerTitle: false,
-        scrolledUnderElevation: 0,
-        backgroundColor: Colors.transparent,
+      appBarTheme: AppBarTheme(centerTitle: false),
+      cardTheme: CardThemeData(
+        clipBehavior: Clip.antiAlias,
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
-      pageTransitionsTheme: const PageTransitionsTheme(
-        builders: {
-          TargetPlatform.android: SharedAxisPageTransitionsBuilder(
-            transitionType: SharedAxisTransitionType.horizontal,
-          ),
-          TargetPlatform.iOS: SharedAxisPageTransitionsBuilder(
-            transitionType: SharedAxisTransitionType.horizontal,
-          ),
-        },
+      dialogTheme: DialogThemeData(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+      ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        showDragHandle: true,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+      ),
+      listTileTheme: ListTileThemeData(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      navigationDrawerTheme: const NavigationDrawerThemeData(),
+      searchBarTheme: const SearchBarThemeData(
+        elevation: WidgetStatePropertyAll(0),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+      ),
+      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+        elevation: 3,
       ),
     );
   }

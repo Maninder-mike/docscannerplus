@@ -1,8 +1,10 @@
-import 'package:intl/intl.dart';
 import 'package:isar_community/isar.dart';
 import 'package:uuid/uuid.dart';
+import 'package:intl/intl.dart';
 
 part 'document_model.g.dart';
+
+enum DocumentSortOption { dateDesc, dateAsc, nameAsc, nameDesc }
 
 @collection
 class DocumentModel {
@@ -35,6 +37,9 @@ class DocumentModel {
   final DateTime? lastSyncedAt;
   final String? contentHash; // To detect changes
 
+  // Favorites
+  final bool isFavorite;
+
   DocumentModel({
     required this.id,
     required this.title,
@@ -50,10 +55,17 @@ class DocumentModel {
     this.cloudFileId,
     this.lastSyncedAt,
     this.contentHash,
+    this.isFavorite = false,
   });
 
   /// Check if document is in trash.
   bool get isDeleted => deletedAt != null;
+
+  /// Get PDF path (alias for filePath)
+  String get pdfPath => filePath ?? '';
+
+  /// Get paths for individual pages (placeholder for now)
+  List<String> get pagePaths => ocrImagePath != null ? [ocrImagePath!] : [];
 
   /// Days remaining before permanent deletion (30 days).
   int get daysUntilPermanentDelete {
@@ -69,6 +81,7 @@ class DocumentModel {
     String? ocrImagePath,
     String? folderId,
     String? filterType,
+    bool isFavorite = false,
   }) {
     return DocumentModel(
       id: const Uuid().v4(),
@@ -83,6 +96,7 @@ class DocumentModel {
       cloudFileId: null,
       lastSyncedAt: null,
       contentHash: null,
+      isFavorite: isFavorite,
     );
   }
 
@@ -100,6 +114,7 @@ class DocumentModel {
       'deletedAt': deletedAt?.toIso8601String(),
       'filterType': filterType,
       'tags': tags,
+      'isFavorite': isFavorite,
     };
   }
 
@@ -123,6 +138,7 @@ class DocumentModel {
           ? DateTime.parse(json['lastSyncedAt'] as String)
           : null,
       contentHash: json['contentHash'] as String?,
+      isFavorite: json['isFavorite'] as bool? ?? false,
     );
   }
 
@@ -142,6 +158,7 @@ class DocumentModel {
     String? cloudFileId,
     DateTime? lastSyncedAt,
     String? contentHash,
+    bool? isFavorite,
   }) {
     return DocumentModel(
       id: id,
@@ -158,6 +175,7 @@ class DocumentModel {
       cloudFileId: clearCloudFileId ? null : (cloudFileId ?? this.cloudFileId),
       lastSyncedAt: lastSyncedAt ?? this.lastSyncedAt,
       contentHash: contentHash ?? this.contentHash,
+      isFavorite: isFavorite ?? this.isFavorite,
     );
   }
 

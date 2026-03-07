@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:docscannerplus/models/cloud_file_metadata.dart';
 
 /// Abstract interface for cloud storage providers
 abstract class CloudStorageService {
@@ -35,6 +36,6 @@ abstract class CloudStorageService {
   Future<void> deleteFile(String cloudId);
 
   /// List files in the app's folder
-  /// Returns map of cloudId -> fileName
-  Future<Map<String, String>> listFiles();
+  /// Returns list of file metadata
+  Future<List<CloudFileMetadata>> listFiles();
 }

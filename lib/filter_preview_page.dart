@@ -26,24 +26,24 @@ class _FilterPreviewPageState extends State<FilterPreviewPage> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: colorScheme.surfaceContainerHighest,
       appBar: AppBar(
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.transparent,
+        foregroundColor: colorScheme.onSurface,
         title: const Text('Edit Scan'),
         actions: [
           TextButton(
             onPressed: _isProcessing ? null : _saveDocument,
             child: _isProcessing
-                ? const SizedBox(
+                ? SizedBox(
                     width: 20,
                     height: 20,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      color: Colors.white,
+                      color: colorScheme.primary,
                     ),
                   )
-                : const Text('Save', style: TextStyle(color: Colors.white)),
+                : Text('Save', style: TextStyle(color: colorScheme.primary)),
           ),
         ],
       ),

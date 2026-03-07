@@ -31,3 +31,17 @@
 -dontwarn io.flutter.embedding.engine.deferredcomponents.**
 -dontwarn io.flutter.embedding.android.FlutterPlayStoreSplitApplication
 
+
+# Google APIs (Drive, Sign-In)
+-keep class com.google.api.services.drive.** { *; }
+-keep class com.google.android.gms.** { *; }
+-keep class com.google.auth.** { *; }
+-keep class com.google.crypto.** { *; }
+-keep class com.google.instrumentation.** { *; }
+-keep class com.google.j2objc.** { *; }
+-keep class com.google.protobuf.** { *; }
+-keep class com.google.thirdparty.** { *; }
+
+# Prevent obfuscation of generic types in Google APIs
+-keepattributes Signature
+-keepattributes *Annotation*

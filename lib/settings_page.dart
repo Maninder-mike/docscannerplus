@@ -106,30 +106,95 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             pinned: true,
             floating: true,
             actions: [
-              if (_searchQuery.isEmpty)
-                IconButton(
-                  icon: const Icon(Icons.search),
-                  onPressed: () {
-                    setState(() {
-                      _searchQuery = ' '; // Trigger search mode
-                      _searchController.clear();
-                    });
-                    // Reset after build to show empty results
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      setState(() => _searchQuery = '');
-                    });
-                  },
-                )
-              else
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () {
-                    setState(() {
-                      _searchQuery = '';
-                      _searchController.clear();
-                    });
-                  },
-                ),
+              SearchAnchor(
+                builder: (BuildContext context, SearchController controller) {
+                  return IconButton(
+                    icon: const Icon(Icons.search),
+                    onPressed: () {
+                      controller.openView();
+                    },
+                  );
+                },
+                suggestionsBuilder:
+                    (BuildContext context, SearchController controller) {
+                      final String keyword = controller.text.toLowerCase();
+
+                      // Simple predefined list of settings
+                      final List<Map<String, dynamic>> allSettings = [
+                        {
+                          'title': 'Scanner Preferences',
+                          'subtitle': 'Default filter, auto-save',
+                          'icon': Icons.tune,
+                          'route': const ScannerPreferencesPage(),
+                        },
+                        {
+                          'title': 'Cloud Sync',
+                          'subtitle': 'Backup & sync across devices',
+                          'icon': Icons.cloud_sync,
+                          'route': const CloudSyncPage(),
+                        },
+                        {
+                          'title': 'Theme',
+                          'subtitle': 'Appearance',
+                          'icon': Icons.palette,
+                          'route': null,
+                        },
+                        {
+                          'title': 'Security',
+                          'subtitle': 'App lock, Biometrics',
+                          'icon': Icons.security,
+                          'route': const SecurityPage(),
+                        },
+                        {
+                          'title': 'Clear Cache',
+                          'subtitle': 'Storage, Data',
+                          'icon': Icons.cleaning_services,
+                          'route': null,
+                          'action': 'clear_cache',
+                        },
+                        {
+                          'title': 'About',
+                          'subtitle': 'Version, Help, Privacy',
+                          'icon': Icons.info,
+                          'route': const AboutPage(),
+                        },
+                      ];
+
+                      final matches = allSettings.where(
+                        (s) =>
+                            (s['title'] as String).toLowerCase().contains(
+                              keyword,
+                            ) ||
+                            (s['subtitle'] as String).toLowerCase().contains(
+                              keyword,
+                            ),
+                      );
+
+                      return matches.map(
+                        (s) => ListTile(
+                          leading: Icon(s['icon'] as IconData),
+                          title: Text(s['title'] as String),
+                          subtitle: Text(s['subtitle'] as String),
+                          onTap: () {
+                            controller.closeView(null);
+                            final route = s['route'];
+                            final action = s['action'];
+
+                            if (route != null) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => route as Widget,
+                                ),
+                              );
+                            } else if (action == 'clear_cache') {
+                              _clearCache();
+                            }
+                          },
+                        ),
+                      );
+                    },
+              ),
             ],
           ),
           SliverList(
@@ -142,15 +207,19 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                           SettingsTile(
                             key: const Key('settings_scanner_prefs_tile'),
                             leading: Container(
-                              padding: const EdgeInsets.all(6),
+                              padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: Colors.orange,
-                                borderRadius: BorderRadius.circular(6),
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.primaryContainer,
+                                borderRadius: BorderRadius.circular(12),
                               ),
-                              child: const Icon(
+                              child: Icon(
                                 Icons.tune,
-                                color: Colors.white,
-                                size: 20,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onPrimaryContainer,
+                                size: 24,
                               ),
                             ),
                             title: 'Scanner Preferences',
@@ -176,15 +245,19 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         children: [
                           SettingsTile(
                             leading: Container(
-                              padding: const EdgeInsets.all(6),
+                              padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: Colors.blue,
-                                borderRadius: BorderRadius.circular(6),
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.secondaryContainer,
+                                borderRadius: BorderRadius.circular(12),
                               ),
-                              child: const Icon(
+                              child: Icon(
                                 Icons.cloud_sync,
-                                color: Colors.white,
-                                size: 20,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSecondaryContainer,
+                                size: 24,
                               ),
                             ),
                             title: 'Cloud Sync',
@@ -205,47 +278,76 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       SettingsGroup(
                         title: isSearching ? null : 'Appearance',
                         children: [
-                          SettingsTile(
-                            leading: Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: Colors.purple,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: const Icon(
-                                Icons.palette,
-                                color: Colors.white,
-                                size: 20,
-                              ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16.0,
+                              vertical: 8.0,
                             ),
-                            title: 'Theme',
-                            subtitle: _getThemeName(themeMode),
-                            trailing: DropdownButton<ThemeMode>(
-                              value: themeMode,
-                              underline: const SizedBox(),
-                              items: const [
-                                DropdownMenuItem(
-                                  value: ThemeMode.system,
-                                  child: Text('System'),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.tertiaryContainer,
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Icon(
+                                        Icons.palette,
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.onTertiaryContainer,
+                                        size: 24,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Text(
+                                      'Theme',
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.titleMedium,
+                                    ),
+                                  ],
                                 ),
-                                DropdownMenuItem(
-                                  value: ThemeMode.light,
-                                  child: Text('Light'),
+                                const SizedBox(height: 16),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: SegmentedButton<ThemeMode>(
+                                    segments: const [
+                                      ButtonSegment(
+                                        value: ThemeMode.system,
+                                        label: Text('System'),
+                                        icon: Icon(Icons.brightness_auto),
+                                      ),
+                                      ButtonSegment(
+                                        value: ThemeMode.light,
+                                        label: Text('Light'),
+                                        icon: Icon(Icons.light_mode),
+                                      ),
+                                      ButtonSegment(
+                                        value: ThemeMode.dark,
+                                        label: Text('Dark'),
+                                        icon: Icon(Icons.dark_mode),
+                                      ),
+                                    ],
+                                    selected: {themeMode},
+                                    onSelectionChanged:
+                                        (Set<ThemeMode> newSelection) {
+                                          ref
+                                              .read(
+                                                themeSettingProvider.notifier,
+                                              )
+                                              .setThemeMode(newSelection.first);
+                                        },
+                                  ),
                                 ),
-                                DropdownMenuItem(
-                                  value: ThemeMode.dark,
-                                  child: Text('Dark'),
-                                ),
+                                const SizedBox(height: 8),
                               ],
-                              onChanged: (mode) {
-                                if (mode != null) {
-                                  ref
-                                      .read(themeSettingProvider.notifier)
-                                      .setThemeMode(mode);
-                                }
-                              },
                             ),
-                            showArrow: false,
                           ),
                         ],
                       ),
@@ -258,15 +360,19 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         children: [
                           SettingsTile(
                             leading: Container(
-                              padding: const EdgeInsets.all(6),
+                              padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: Colors.green,
-                                borderRadius: BorderRadius.circular(6),
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.errorContainer,
+                                borderRadius: BorderRadius.circular(12),
                               ),
-                              child: const Icon(
+                              child: Icon(
                                 Icons.security,
-                                color: Colors.white,
-                                size: 20,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onErrorContainer,
+                                size: 24,
                               ),
                             ),
                             title: 'Security',
@@ -289,15 +395,19 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         children: [
                           SettingsTile(
                             leading: Container(
-                              padding: const EdgeInsets.all(6),
+                              padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: Colors.grey,
-                                borderRadius: BorderRadius.circular(6),
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.surfaceContainerHighest,
+                                borderRadius: BorderRadius.circular(12),
                               ),
-                              child: const Icon(
+                              child: Icon(
                                 Icons.cleaning_services,
-                                color: Colors.white,
-                                size: 20,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                                size: 24,
                               ),
                             ),
                             title: 'Clear Cache',
@@ -315,15 +425,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                           SettingsTile(
                             key: const Key('settings_about_tile'),
                             leading: Container(
-                              padding: const EdgeInsets.all(6),
+                              padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: Colors.teal,
-                                borderRadius: BorderRadius.circular(6),
+                                color: Theme.of(context).colorScheme.primary,
+                                borderRadius: BorderRadius.circular(12),
                               ),
-                              child: const Icon(
+                              child: Icon(
                                 Icons.info,
-                                color: Colors.white,
-                                size: 20,
+                                color: Theme.of(context).colorScheme.onPrimary,
+                                size: 24,
                               ),
                             ),
                             title: 'About',
@@ -348,16 +458,5 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         ],
       ),
     );
-  }
-
-  String _getThemeName(ThemeMode mode) {
-    switch (mode) {
-      case ThemeMode.system:
-        return 'System Default';
-      case ThemeMode.light:
-        return 'Light Mode';
-      case ThemeMode.dark:
-        return 'Dark Mode';
-    }
   }
 }

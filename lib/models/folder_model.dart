@@ -65,24 +65,39 @@ class FolderModel {
       'id': id,
       'name': name,
       'color': color.toARGBHex(),
-      'iconCodePoint': icon.codePoint,
+      'iconIndex': availableIcons.indexOf(icon),
       'createdAt': createdAt.toIso8601String(),
     };
   }
 
   factory FolderModel.fromJson(Map<String, dynamic> json) {
+    // Priority: iconIndex -> iconCodePoint -> default
+    IconData? icon;
+
+    final index = json['iconIndex'] as int?;
+    if (index != null && index >= 0 && index < availableIcons.length) {
+      icon = availableIcons[index];
+    } else {
+      final codePoint = json['iconCodePoint'] as int?;
+      if (codePoint != null) {
+        icon = _getIconFromCodePoint(codePoint);
+      }
+    }
+
     return FolderModel(
       id: json['id'] as String,
       name: json['name'] as String,
       color: _colorFromHex(json['color'] as String),
-      icon: _getIconFromCodePoint(json['iconCodePoint'] as int),
+      icon: icon ?? Icons.folder,
       createdAt: DateTime.parse(json['createdAt'] as String),
     );
   }
 
   static IconData _getIconFromCodePoint(int codePoint) {
-    for (final icon in availableIcons) {
-      if (icon.codePoint == codePoint) return icon;
+    for (var i = 0; i < availableIcons.length; i++) {
+      if (availableIcons[i].codePoint == codePoint) {
+        return availableIcons[i];
+      }
     }
     return Icons.folder;
   }
